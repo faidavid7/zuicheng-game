@@ -154,12 +154,8 @@ details summary{cursor:pointer; font-weight:800;}
   <input type="text" id="gameNameInp" title="存檔名稱（局名）：直接改，例如 1樓、2樓" onchange="UI.renameGame(this.value)">
   <button onclick="UI.openSaves()">🗂 存檔</button>
   <span style="display:flex;align-items:center;gap:4px;">
-    <select id="timerSel" onchange="UI.timerPreset(this.value)" title="計時預設">
-      <option value="600">10分</option><option value="300">5分</option><option value="180">3分</option>
-      <option value="60">1分</option><option value="30">30秒</option><option value="custom">自訂…</option>
-    </select>
     <b id="timerDisp" onclick="UI.timerToggle()" title="點擊也可開始/暫停"
-       style="font-size:21px;color:#ffd84d;min-width:64px;text-align:center;cursor:pointer;font-variant-numeric:tabular-nums;">10:00</b>
+       style="font-size:21px;color:#ffd84d;min-width:64px;text-align:center;cursor:pointer;font-variant-numeric:tabular-nums;">0:00</b>
     <button id="timerBtn" onclick="UI.timerToggle()">開始</button>
     <button onclick="UI.timerReset()">重置</button>
   </span>
@@ -428,22 +424,12 @@ function normalizeState(s){ // 舊存檔相容
 const byId = id => S.players.find(p=>p.id===id);
 const pname = p => p.name;   // 介面只顯示名字（座位僅供 Excel 貼上比對）
 
-/* ---------- 計時器（不入存檔，純課堂用） ---------- */
-const T={dur:600, left:600, run:false, iv:null};
+/* ---------- 計時器（碼表：從 0 往上計；不入存檔，純課堂用） ---------- */
+const T={sec:0, run:false, iv:null};
 function timerDisp(){ const el=document.getElementById('timerDisp'); if(!el) return;
-  el.textContent = Math.floor(T.left/60)+':'+String(T.left%60).padStart(2,'0');
-  el.style.color = T.left===0 ? '#ff6b6b' : (T.run ? '#9fd89f' : '#ffd84d'); }
-function timerTick(){ if(!T.run) return; T.left--;
-  if(T.left<=0){ T.left=0; T.run=false; clearInterval(T.iv);
-    document.getElementById('timerBtn').textContent='開始';
-    try{ const ac=new (window.AudioContext||window.webkitAudioContext)();
-      [0,0.35,0.7].forEach(t=>{ const o=ac.createOscillator(),g=ac.createGain();
-        o.frequency.value=880; o.connect(g); g.connect(ac.destination);
-        g.gain.setValueAtTime(0.3,ac.currentTime+t);
-        g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+t+0.3);
-        o.start(ac.currentTime+t); o.stop(ac.currentTime+t+0.32); }); }catch(e){}
-    log('⏱ 時間到！'); renderLog(); }
-  timerDisp(); }
+  el.textContent = Math.floor(T.sec/60)+':'+String(T.sec%60).padStart(2,'0');
+  el.style.color = T.run ? '#9fd89f' : '#ffd84d'; }
+function timerTick(){ if(!T.run) return; T.sec++; timerDisp(); }
 function activePlayers(){ return S.players.filter(p=>!p.finished); }
 function curPlayer(){ if(S.phase!=='play') return null; const id=S.order[S.turnPtr]; return byId(id)||null; }
 
@@ -1163,16 +1149,11 @@ const UI = {
     if(f.id===t.id||f.tickets<1){ alert('無法轉讓'); return; }
     snapshot(); f.tickets--; t.tickets++; log(`🎫 ${f.name} 轉讓一張逃脫券給 ${t.name}`); closeModal(); save(); render(); },
 
-  timerPreset:v=>{ if(v==='custom'){ const m=parseFloat(prompt('要計幾分鐘？（可用小數，例如 0.5 = 30秒）')||'');
-      if(m>0) T.dur=Math.round(m*60); document.getElementById('timerSel').value=[600,300,180,60,30].includes(T.dur)?String(T.dur):'custom'; }
-    else T.dur=parseInt(v,10);
-    T.run=false; clearInterval(T.iv); T.left=T.dur;
-    document.getElementById('timerBtn').textContent='開始'; timerDisp(); },
   timerToggle:()=>{ if(T.run){ T.run=false; clearInterval(T.iv); }
-    else { if(T.left<=0) T.left=T.dur; T.run=true; T.iv=setInterval(timerTick,1000); }
+    else { T.run=true; T.iv=setInterval(timerTick,1000); }
     document.getElementById('timerBtn').textContent=T.run?'暫停':'開始'; timerDisp(); },
-  timerReset:()=>{ if(!confirm('你確定嗎？（計時將回到 '+Math.floor(T.dur/60)+':'+String(T.dur%60).padStart(2,'0')+'）')) return;
-    T.run=false; clearInterval(T.iv); T.left=T.dur;
+  timerReset:()=>{ if(!confirm('你確定嗎？（計時將歸零）')) return;
+    T.run=false; clearInterval(T.iv); T.sec=0;
     document.getElementById('timerBtn').textContent='開始'; timerDisp(); },
 
   openSaves:()=>{ SAVELIST=[]; HISTLIST=[];
