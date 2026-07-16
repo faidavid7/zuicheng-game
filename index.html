@@ -886,7 +886,7 @@ function renderSuggs(){
       return `<div class="sugg">
         <div class="src">⚡ 個人規則觸發偵測（${esc(a.name)} 的「${EVENT_NAMES[sg.evKey]||sg.evKey}」）${sg.rep?`<b style="color:var(--danger)">（本回合第 ${sg.rep+1} 次觸發同一規則）</b>`:''}</div>
         <div class="rule">${esc(pname(o))}：「${esc(ruleSentence(o))}」</div>
-        <div class="btns"><button class="warn" onclick="UI.warnActor('${a.id}')">⚠️ ${esc(a.name)} 警告值+1</button>
+        <div class="btns"><button class="warn" onclick="UI.warnActor('${o.id}')">⚠️ ${esc(o.name)} 警告值+1</button>
         <button class="good" onclick="UI.applySugg(${sg.id})">✅ 支付代價並執行</button>
         <button onclick="UI.dropSugg(${sg.id})">略過（不生效）</button></div>
       </div>`;
@@ -895,7 +895,7 @@ function renderSuggs(){
       const o=byId(sg.ownerId), a=byId(sg.actorId);
       return `<div class="sugg"><div class="src">⚠ 含自訂字塊，請荷官人工判定（${esc(a.name)} 觸發）</div>
         <div class="rule">${esc(pname(o))}：「${esc(ruleSentence(o))}」</div>
-        <div class="btns"><button class="warn" onclick="UI.warnActor('${a.id}')">⚠️ ${esc(a.name)} 警告值+1</button>
+        <div class="btns"><button class="warn" onclick="UI.warnActor('${o.id}')">⚠️ ${esc(o.name)} 警告值+1</button>
         <button onclick="UI.dropSugg(${sg.id})">知道了（人工處理）</button></div></div>`;
     }
     if(sg.kind==='group'){
