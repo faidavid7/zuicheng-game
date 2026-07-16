@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#3f3f46">
 <title>罪城法則 — 荷官主控台</title>
 <style>
 :root{
@@ -24,7 +25,11 @@ select,input[type=text]{font-family:inherit; font-size:14px; padding:5px 8px; bo
 .topbar{display:flex; align-items:center; gap:12px; padding:10px 16px; background:#3f3f46; color:#fff; flex-wrap:wrap;}
 .topbar h1{font-size:20px; letter-spacing:2px;}
 .topbar .spacer{flex:1;}
+#gameNameInp{font-size:17px; font-weight:800; width:110px; background:#55555c; color:#fff;
+  border:1.5px solid #7a7a82; border-radius:8px; padding:6px 10px; text-align:center;}
+#gameNameInp:focus{background:#fff; color:#333;}
 .layout{display:grid; grid-template-columns:minmax(420px,3fr) minmax(430px,4fr); gap:14px; padding:14px; align-items:start;}
+.layout>div{min-width:0;}   /* 防 grid min-content 撐寬（手機會被迫 zoom-out） */
 .panel{background:var(--card); border-radius:14px; padding:12px; box-shadow:0 1px 4px rgba(0,0,0,.08);}
 .panel h2{font-size:16px; margin-bottom:8px; display:flex; align-items:center; gap:8px;}
 
@@ -105,13 +110,48 @@ details summary{cursor:pointer; font-weight:800;}
 .setupgrid{width:100%; border-collapse:collapse;}
 .setupgrid td,.setupgrid th{border-bottom:1px solid #eee; padding:4px; font-size:13.5px; text-align:center;}
 .rulepeek{font-size:12.5px; text-align:left;}
-@media (max-width:1100px){ .layout{grid-template-columns:1fr;} }
+@media (max-width:1100px){
+  .layout{grid-template-columns:1fr;}
+  .layout>div:first-child{order:2;}          /* 窄螢幕：操作區在上、盤面+紀錄在下 */
+}
+/* 手機版（同一網址自動切換） */
+@media (max-width:700px){
+  body{font-size:16px;}
+  .layout{padding:8px; gap:10px;}
+  .panel{padding:10px; border-radius:12px;}
+  .topbar{padding:8px 10px; gap:8px;}
+  .topbar h1{font-size:18px; letter-spacing:1px;}
+  .topbar button{padding:10px 12px;}
+  select,input[type=text],input[type=number]{font-size:16px;}   /* 防 iOS 聚焦自動放大 */
+  #playPanel{position:sticky; top:6px; z-index:20; box-shadow:0 3px 12px rgba(0,0,0,.18);}
+  #suggestions{max-height:32vh; overflow-y:auto;}
+  #banners{max-height:20vh; overflow-y:auto;}
+  .turnbar .who{font-size:18px;}
+  .dicebtns{width:100%;}
+  .dicebtns button{flex:1; font-size:22px; padding:14px 0; min-width:54px;}
+  button.primary{padding:12px 16px; font-size:16px;}
+  .mini{font-size:13px; padding:8px 10px;}
+  table.players{font-size:14px;}
+  table.players td{padding:8px 5px; white-space:nowrap;}
+  .sugg .btns button{flex:1; padding:12px;}
+  .banner button{padding:12px 16px;}
+  .blockrow{grid-template-columns:1fr;}
+  .blockrow .lbl{text-align:left;}
+  .boardwrap{flex-direction:column;}
+  .sidebox{flex-direction:row; width:100%;}
+  .sidebox>div{flex:1;}
+  .cell{min-height:44px;}
+  .cell .icon{font-size:18px;}
+  .modal{padding:12px;}
+  .choice{padding:14px; font-size:16px;}
+}
 </style>
 </head>
 <body>
 
 <div class="topbar">
   <h1>罪城法則</h1>
+  <input type="text" id="gameNameInp" title="存檔名稱（局名）：直接改，例如 1樓、2樓" onchange="UI.renameGame(this.value)">
   <span id="phaseTag" class="tag" style="background:var(--orange)">設定中</span>
   <span id="saveInd" style="color:#9fd89f;font-size:12.5px;"></span>
   <span class="spacer"></span>
@@ -365,16 +405,17 @@ function freshState(){
 function newPlayer(seat){
   return {id:'P'+Math.random().toString(36).slice(2,8), seat, name:seat, team:'',
     blocks:{subj:null,event:null,cost:null,target:null,effect:null},
-    progress:0, jailed:false, tickets:0, peace:0, infect:0,
+    progress:0, jailed:false, tickets:0, peace:0, infect:0, warn:0,
     skipNext:false, specialNext:false, finished:false};
 }
 function normalizeState(s){ // 舊存檔相容
   if(!s.groupRules) s.groupRules = s.groupRule ? [s.groupRule] : [];
   delete s.groupRule;
-  (s.players||[]).forEach(p=>{ if(typeof p.infect!=='number') p.infect=0; });
+  (s.players||[]).forEach(p=>{ if(typeof p.infect!=='number') p.infect=0; if(typeof p.warn!=='number') p.warn=0; });
   return s;
 }
 const byId = id => S.players.find(p=>p.id===id);
+const pname = p => p.name===p.seat ? p.seat : `${p.seat}｜${p.name}`;   // 未改名只顯示座位
 function activePlayers(){ return S.players.filter(p=>!p.finished); }
 function curPlayer(){ if(S.phase!=='play') return null; const id=S.order[S.turnPtr]; return byId(id)||null; }
 
@@ -595,7 +636,7 @@ function openGroupEffect(actor, rule){
   const eff=GRP.g.find(x=>x.k===rule.g); if(!eff) return;
   if(eff.k==='pushback'){
     openModal(`<h2>團體規則效果：可使一名玩家後退一格</h2>
-      ${activePlayers().map(p=>`<button class="choice" onclick="UI.grpPush('${p.id}')">${p.seat}｜${p.name}</button>`).join('')}
+      ${activePlayers().map(p=>`<button class="choice" onclick="UI.grpPush('${p.id}')">${esc(pname(p))}</button>`).join('')}
       <div class="foot"><button onclick="closeModal()">放棄</button></div>`);
   }else{
     applyGroupEffect(actor, eff.k);
@@ -677,7 +718,8 @@ function closeModal(){ $('#modalMask').classList.remove('show'); }
 $('#modalMask').addEventListener('click',e=>{ if(e.target.id==='modalMask') closeModal(); });
 
 function render(){
-  $('#phaseTag').textContent = S.phase==='setup' ? '設定中' : '遊戲進行中（'+S.gameName+'）';
+  $('#phaseTag').textContent = S.phase==='setup' ? '設定中' : '遊戲進行中';
+  const gn=$('#gameNameInp'); if(gn && document.activeElement!==gn) gn.value=S.gameName;
   $('#dirNote').textContent = '行進方向：'+(S.dir==='cw'?'順時針（始/終沿下排往右）':'逆時針（始/終沿左排往上）')+'，可在設定切換';
   renderBoard(); renderPlayers(); renderSetup(); renderTurn(); renderSuggs(); renderLog();
   $('#setupPanel').style.display = S.phase==='setup' ? '' : 'none';
@@ -735,7 +777,7 @@ function renderPlayers(){
   $('#teamSums').innerHTML = Object.keys(teams).length
     ? '團隊感染值加總：'+Object.entries(teams).map(([t,v])=>`<span class="tag team" style="font-size:13px">${esc(t)} 🦠${v}</span>`).join(' ')
     : '<span class="note">（幫玩家設定隊伍後，這裡會顯示各團隊感染值加總）</span>';
-  $('#playersTable').innerHTML = `<tr><th>#</th><th>玩家</th><th>位置</th><th>狀態</th><th>🎫逃脫券</th><th>🪙皮斯</th><th>🦠感染值</th><th>操作</th></tr>`+
+  $('#playersTable').innerHTML = `<tr><th>#</th><th>玩家</th><th>位置</th><th>狀態</th><th>🎫逃脫券</th><th>🪙皮斯</th><th>🦠感染值</th><th>⚠️警告值</th><th>操作</th></tr>`+
     S.order.map((id,i)=>{
       const p=byId(id);
       const rank = p.finished ? `第${S.finishSeq.indexOf(p.id)+1}名` : '';
@@ -749,7 +791,7 @@ function renderPlayers(){
       ].join('');
       return `<tr class="${cur&&cur.id===p.id?'cur':''} ${p.finished?'done':''}">
         <td>${i+1}</td>
-        <td class="namecell">${esc(p.seat)}｜${esc(p.name)}${p.team?`<span class="tag team">${esc(p.team)}</span>`:''}</td>
+        <td class="namecell" onclick="UI.openEdit('${p.id}')" title="點名字開編輯視窗" style="cursor:pointer">${esc(pname(p))}${p.team?`<span class="tag team">${esc(p.team)}</span>`:''}</td>
         <td><span class="numctl"><button class="mini" onclick="UI.nudge('${p.id}','progress',-1)">−</button><b>${p.progress}</b><button class="mini" onclick="UI.nudge('${p.id}','progress',1)">＋</button></span></td>
         <td>${tags}
           <button class="mini" onclick="UI.toggleJail('${p.id}')">${p.jailed?'釋放':'入獄'}</button>
@@ -759,12 +801,13 @@ function renderPlayers(){
         <td><span class="numctl"><button class="mini" onclick="UI.nudge('${p.id}','tickets',-1)">−</button><b>${p.tickets}</b><button class="mini" onclick="UI.nudge('${p.id}','tickets',1)">＋</button></span></td>
         <td><span class="numctl"><button class="mini" onclick="UI.nudge('${p.id}','peace',-1)">−</button><b>${p.peace}</b><button class="mini" onclick="UI.nudge('${p.id}','peace',1)">＋</button></span></td>
         <td><span class="numctl"><button class="mini" onclick="UI.nudge('${p.id}','infect',-1)">−</button><b>${p.infect}</b><button class="mini" onclick="UI.nudge('${p.id}','infect',1)">＋</button></span></td>
+        <td><span class="numctl"><button class="mini" onclick="UI.nudge('${p.id}','warn',-1)">−</button><b>${p.warn}</b><button class="mini" onclick="UI.nudge('${p.id}','warn',1)">＋</button></span></td>
         <td><button class="mini" onclick="UI.openEdit('${p.id}')">✏️ 編輯</button></td>
       </tr>`;
     }).join('');
   $('#allRules').innerHTML = S.players.map(p=>{
     const s=ruleSentence(p);
-    return `<div><b>${esc(p.seat)}｜${esc(p.name)}</b>（${ruleCharCount(p)}字）：${s?esc(s):'<i>未登記</i>'}</div>`;
+    return `<div><b>${esc(pname(p))}</b>（${ruleCharCount(p)}字）：${s?esc(s):'<i>未登記</i>'}</div>`;
   }).join('');
 }
 function renderTurn(){
@@ -774,7 +817,7 @@ function renderTurn(){
   const dieSet = p.specialNext ? '特殊骰（1、2、2、3、3、3）' : '普通骰（1、2、2、3、監獄、逃脫）';
   let html=`<span class="who">▶ 輪到</span>
     <select style="font-size:17px;font-weight:800;padding:6px" onchange="UI.setCurrent(this.value)" title="現實中誰在擲骰就切到誰">
-      ${S.order.map(id=>{const q=byId(id);return `<option value="${q.id}" ${q.id===p.id?'selected':''}>${esc(q.seat)}｜${esc(q.name)}${q.finished?'（已完賽）':''}</option>`;}).join('')}
+      ${S.order.map(id=>{const q=byId(id);return `<option value="${q.id}" ${q.id===p.id?'selected':''}>${esc(pname(q))}${q.finished?'（已完賽）':''}</option>`;}).join('')}
     </select>`;
   if(p.jailed) html+=`<span class="tag jail">監獄中（標記格 ${p.progress%TRACK_LEN}）</span>`;
   if(p.specialNext) html+=`<span class="tag special">使用特殊骰</span>`;
@@ -809,7 +852,7 @@ function renderSuggs(){
       const o=byId(sg.ownerId), a=byId(sg.actorId);
       return `<div class="sugg">
         <div class="src">⚡ 個人規則觸發偵測（${esc(a.name)} 的「${EVENT_NAMES[sg.evKey]||sg.evKey}」）${sg.rep?`<b style="color:var(--danger)">（本回合第 ${sg.rep+1} 次觸發同一規則）</b>`:''}</div>
-        <div class="rule">${esc(o.seat)}｜${esc(o.name)}：「${esc(ruleSentence(o))}」</div>
+        <div class="rule">${esc(pname(o))}：「${esc(ruleSentence(o))}」</div>
         <div class="btns"><button class="good" onclick="UI.applySugg(${sg.id})">✅ 支付代價並執行</button>
         <button onclick="UI.dropSugg(${sg.id})">略過（不生效）</button></div>
       </div>`;
@@ -817,7 +860,7 @@ function renderSuggs(){
     if(sg.kind==='manual'){
       const o=byId(sg.ownerId), a=byId(sg.actorId);
       return `<div class="sugg"><div class="src">⚠ 含自訂字塊，請荷官人工判定（${esc(a.name)} 觸發）</div>
-        <div class="rule">${esc(o.seat)}｜${esc(o.name)}：「${esc(ruleSentence(o))}」</div>
+        <div class="rule">${esc(pname(o))}：「${esc(ruleSentence(o))}」</div>
         <div class="btns"><button onclick="UI.dropSugg(${sg.id})">知道了（人工處理）</button></div></div>`;
     }
     if(sg.kind==='group'){
@@ -854,7 +897,7 @@ function regModal(pid){
   };
   openModal(`<h2>📝 荷官室 — 個人規則登記</h2>
     <div style="margin-bottom:8px;">玩家：<select onchange="UI.openRegFor(this.value)">
-      ${S.order.map(id=>{const q=byId(id);return `<option value="${q.id}" ${q.id===p.id?'selected':''}>${q.seat}｜${q.name}</option>`;}).join('')}
+      ${S.order.map(id=>{const q=byId(id);return `<option value="${q.id}" ${q.id===p.id?'selected':''}>${esc(pname(q))}</option>`;}).join('')}
     </select> <span class="note">一次只顯示一位，避免其他玩家看到</span></div>
     ${CATS.map(([cat,label,cls])=>`<div class="blockrow"><span class="lbl ${cls}">${label}</span><span>${opts(cat)}</span></div>`).join('')}
     <div class="sentence" id="regSentence"></div>
@@ -908,7 +951,7 @@ function groupModal(editIdx){
 function settingsModal(){
   openModal(`<h2>⚙ 設定</h2>
     <div style="display:flex;flex-direction:column;gap:10px;">
-      <label>局名（存檔鍵）：<input type="text" id="setName" value="${esc(S.gameName)}"></label>
+      <p class="note">存檔名稱（局名）請直接在畫面最上方的欄位修改。</p>
       <label>行進方向：
         <select id="setDir">
           <option value="cw" ${S.dir==='cw'?'selected':''}>順時針（始/終 → 沿下排往右）</option>
@@ -992,7 +1035,7 @@ const UI = {
   openEdit:pid=>{ const p=byId(pid);
     const num=(id,v)=>`<input type="number" id="${id}" value="${v}" style="width:70px;padding:4px;border:1px solid #ccc;border-radius:6px;">`;
     const chk=(id,v,label)=>`<label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" id="${id}" ${v?'checked':''}>${label}</label>`;
-    openModal(`<h2>✏️ 編輯 ${esc(p.seat)}｜${esc(p.name)}（臨時狀況直接改，不用復原）</h2>
+    openModal(`<h2>✏️ 編輯 ${esc(pname(p))}（臨時狀況直接改，不用復原）</h2>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <label>名字 <input type="text" id="ed_name" value="${esc(p.name)}" style="width:100%"></label>
         <label>隊伍 <select id="ed_team" style="width:100%">${['','橡樹','楊樹','栗樹'].map(t=>`<option value="${t}" ${p.team===t?'selected':''}>${t||'—'}</option>`).join('')}</select></label>
@@ -1000,6 +1043,7 @@ const UI = {
         <label>🎫 逃脫券 ${num('ed_tickets',p.tickets)}</label>
         <label>🪙 皮斯 ${num('ed_peace',p.peace)}</label>
         <label>🦠 感染值 ${num('ed_infect',p.infect)}</label>
+        <label>⚠️ 警告值 ${num('ed_warn',p.warn)}</label>
         ${chk('ed_jailed',p.jailed,'⛓ 在監獄中（標記格＝位置）')}
         ${chk('ed_skip',p.skipNext,'⏸ 暫停一回合')}
         ${chk('ed_special',p.specialNext,'🎲 下次用特殊骰')}
@@ -1015,13 +1059,14 @@ const UI = {
     p.tickets=Math.max(0,iv('ed_tickets'));
     p.peace=iv('ed_peace');
     p.infect=iv('ed_infect');
+    p.warn=Math.max(0,iv('ed_warn'));
     p.jailed=document.getElementById('ed_jailed').checked;
     p.skipNext=document.getElementById('ed_skip').checked;
     p.specialNext=document.getElementById('ed_special').checked;
     const fin=document.getElementById('ed_finished').checked;
     if(fin&&!p.finished){ p.finished=true; if(!S.finishSeq.includes(p.id)) S.finishSeq.push(p.id); }
     if(!fin&&p.finished){ p.finished=false; S.finishSeq=S.finishSeq.filter(i=>i!==p.id); p.progress=Math.min(p.progress,TRACK_LEN-1); }
-    log(`✏️ 荷官編輯 ${p.name}：位置${p.progress}、逃脫券${p.tickets}、皮斯${p.peace}、感染值${p.infect}${p.jailed?'、監獄中':''}${p.finished?'、已完賽':''}`);
+    log(`✏️ 荷官編輯 ${p.name}：位置${p.progress}、逃脫券${p.tickets}、皮斯${p.peace}、感染值${p.infect}、警告值${p.warn}${p.jailed?'、監獄中':''}${p.finished?'、已完賽':''}`);
     closeModal(); save(); render(); },
   moveOrder:(pid,d)=>{ snapshot(); const i=S.order.indexOf(pid); const j=i+d; if(j<0||j>=S.order.length)return;
     [S.order[i],S.order[j]]=[S.order[j],S.order[i]]; save(); render(); },
@@ -1073,8 +1118,8 @@ const UI = {
 
   openTransfer:()=>{ openModal(`<h2>🎫 逃脫券轉讓</h2>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-      由 <select id="tfFrom">${S.players.map(p=>`<option value="${p.id}">${p.seat}｜${p.name}（${p.tickets}張）</option>`).join('')}</select>
-      轉給 <select id="tfTo">${S.players.map(p=>`<option value="${p.id}">${p.seat}｜${p.name}</option>`).join('')}</select>
+      由 <select id="tfFrom">${S.players.map(p=>`<option value="${p.id}">${esc(pname(p))}（${p.tickets}張）</option>`).join('')}</select>
+      轉給 <select id="tfTo">${S.players.map(p=>`<option value="${p.id}">${esc(pname(p))}</option>`).join('')}</select>
       </div>
       <div class="foot"><button class="primary" onclick="UI.doTransfer()">轉讓 1 張</button><button onclick="closeModal()">取消</button></div>`); },
   doTransfer:()=>{ const f=byId($('#tfFrom').value), t=byId($('#tfTo').value);
@@ -1101,7 +1146,7 @@ const UI = {
           if(!k) return '<td style="color:#999">—（清空）</td>';
           if(k.startsWith('custom:')) return `<td>✎ ${esc(k.slice(7))} <span class="note">自訂</span></td>`;
           return `<td>✓ ${esc(blockText(cat,k))}</td>`; }).join('');
-        return `<tr><td><b>${esc(r.head)}</b><br>${p?`→ 更新 ${esc(p.seat)}｜${esc(p.name)}`:'→ 新增玩家'}</td>${hasOrd?`<td><b>${r.ord!=null?r.ord:'—'}</b></td>`:''}${tds}</tr>`;
+        return `<tr><td><b>${esc(r.head)}</b><br>${p?`→ 更新 ${esc(pname(p))}`:'→ 新增玩家'}</td>${hasOrd?`<td><b>${r.ord!=null?r.ord:'—'}</b></td>`:''}${tds}</tr>`;
       }).join('')+'</table>'+(hasOrd?'<p class="note">✅ 偵測到「擲骰子順序」欄：套用後會直接照 Excel 的順序重排。</p>':'<p class="note">未偵測到「擲骰子順序」欄：順序不變（可整列連順序欄一起複製，或匯入後按「依字數排順序」）。</p>');
     btn.style.display='';
   },
@@ -1132,10 +1177,13 @@ const UI = {
     if(!confirm(`還原到上一動備份（${bak.savedAt?new Date(bak.savedAt).toLocaleTimeString('zh-TW',{hour12:false}):'時間不明'}）？`)) return;
     snapshot(); S=normalizeState(bak); SUGGS=[]; log('⏪ 已還原上一動備份'); closeModal(); save(); render(); },
   openSettings:()=>settingsModal(),
-  saveSettings:()=>{ snapshot(); const old=S.gameName;
-    S.gameName=$('#setName').value.trim()||old; S.dir=$('#setDir').value;
-    if(old!==S.gameName){ try{localStorage.removeItem('zuicheng_'+old);}catch(e){} }
-    log(`設定更新：局名 ${S.gameName}、方向 ${S.dir==='cw'?'順時針':'逆時針'}`);
+  renameGame:v=>{ v=v.trim(); if(!v||v===S.gameName){ render(); return; }
+    snapshot();
+    try{ localStorage.removeItem('zuicheng_'+S.gameName); localStorage.removeItem('zuicheng_bak__'+S.gameName); }catch(e){}
+    log(`存檔名稱：「${S.gameName}」→「${v}」`);
+    S.gameName=v; save(); render(); },
+  saveSettings:()=>{ snapshot(); S.dir=$('#setDir').value;
+    log(`設定更新：方向 ${S.dir==='cw'?'順時針':'逆時針'}`);
     closeModal(); save(); render(); },
   resetAll:()=>{ if(!confirm('確定整局重設？（會清空目前所有進度）'))return;
     try{localStorage.removeItem('zuicheng_'+S.gameName);}catch(e){}
