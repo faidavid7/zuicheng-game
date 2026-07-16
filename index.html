@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>罪城法則 — 荷官主控台</title>
+<style>
+:root{
+  --purple:#9C64C8; --blue:#58A6D6; --yellow:#FFD84D; --orange:#F5A83E; --green:#7CB661;
+  --ink:#333; --bg:#f2f2f0; --card:#fff; --danger:#c0392b;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{font-family:"Microsoft JhengHei","PingFang TC",sans-serif; background:var(--bg); color:var(--ink); font-size:15px;}
+h1,h2,h3{font-weight:800;}
+button{font-family:inherit; font-size:14px; border:none; border-radius:8px; padding:6px 12px; cursor:pointer; background:#e3e3e0;}
+button:hover{filter:brightness(.95);}
+button.primary{background:var(--blue); color:#fff;}
+button.good{background:var(--green); color:#fff;}
+button.warn{background:var(--orange); color:#fff;}
+button.bad{background:var(--danger); color:#fff;}
+button.ghost{background:transparent; border:1px solid #bbb;}
+button:disabled{opacity:.4; cursor:not-allowed;}
+select,input[type=text]{font-family:inherit; font-size:14px; padding:5px 8px; border:1px solid #ccc; border-radius:6px; background:#fff;}
+.topbar{display:flex; align-items:center; gap:12px; padding:10px 16px; background:#3f3f46; color:#fff; flex-wrap:wrap;}
+.topbar h1{font-size:20px; letter-spacing:2px;}
+.topbar .spacer{flex:1;}
+.layout{display:grid; grid-template-columns:minmax(420px,3fr) minmax(430px,4fr); gap:14px; padding:14px; align-items:start;}
+.panel{background:var(--card); border-radius:14px; padding:12px; box-shadow:0 1px 4px rgba(0,0,0,.08);}
+.panel h2{font-size:16px; margin-bottom:8px; display:flex; align-items:center; gap:8px;}
+
+/* board */
+.boardwrap{display:flex; gap:12px; align-items:flex-start;}
+.board{display:grid; grid-template-columns:repeat(6,1fr); grid-template-rows:repeat(6,1fr); gap:3px; aspect-ratio:6/6; width:100%; max-width:560px;}
+.cell{border-radius:6px; position:relative; min-height:52px; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; overflow:hidden;}
+.cell .icon{font-size:26px; line-height:1.1; padding-top:2px; text-shadow:0 0 3px rgba(255,255,255,.5);}
+.cell .icon.startlabel{font-size:16px; font-weight:900; padding-top:8px;}
+.cell .idx{position:absolute; top:2px; left:4px; font-size:10px; opacity:.55; font-weight:700;}
+.cell.blank{background:transparent;}
+.cell.start{background:#fff; border:2px solid #999;}
+.pieces{display:flex; flex-wrap:wrap; gap:2px; justify-content:center; padding:2px; margin-top:auto; margin-bottom:2px;}
+.piece{width:17px; height:17px; border-radius:50%; background:#333; color:#fff; font-size:10px; font-weight:800; display:flex; align-items:center; justify-content:center; border:1.5px solid #fff; box-shadow:0 1px 2px rgba(0,0,0,.4);}
+.piece.cur{outline:3px solid #ff3860;}
+.pieces.dense{gap:1px;} .pieces.dense .piece{width:13px; height:13px; font-size:8.5px; border-width:1px;}
+.sidebox{display:flex; flex-direction:column; gap:10px; min-width:120px;}
+.jailbox{background:var(--purple); border-radius:10px; color:#fff; padding:8px; min-height:70px;}
+.jailbox h3{font-size:14px; margin-bottom:4px;}
+.finishbox{background:#666; border-radius:10px; color:#fff; padding:8px;}
+.finishbox h3{font-size:14px; margin-bottom:4px;}
+.finishbox ol{padding-left:20px; font-size:13px;}
+
+/* turn area */
+.turnbar{display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px; border-radius:10px; background:#fdf6e3; border:2px solid var(--orange); margin-bottom:10px;}
+.turnbar .who{font-size:20px; font-weight:900;}
+.tag{display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:700; color:#fff;}
+.tag.jail{background:var(--purple);} .tag.skip{background:#888;} .tag.special{background:var(--danger);} .tag.team{background:#555;}
+.dicebtns{display:flex; gap:6px; flex-wrap:wrap;}
+.dicebtns button{font-size:18px; font-weight:800; padding:8px 16px; background:#fff; border:2px solid #999;}
+.dicebtns button.jailface{border-color:var(--purple); color:var(--purple);}
+.dicebtns button.escface{border-color:var(--green); color:var(--green);}
+
+/* suggestions */
+.sugg{border:2px dashed var(--danger); background:#fff5f5; border-radius:10px; padding:8px 10px; margin-bottom:8px;}
+.sugg .rule{font-weight:700; margin:4px 0;}
+.sugg .src{font-size:12px; color:#777;}
+.sugg .btns{display:flex; gap:6px; margin-top:6px; flex-wrap:wrap;}
+.banner{border:2px solid var(--blue); background:#eef7fd; border-radius:10px; padding:8px 10px; margin-bottom:8px;}
+
+/* players table */
+table.players{width:100%; border-collapse:collapse; font-size:13.5px;}
+table.players th{background:#efefec; padding:5px 4px; font-size:12.5px; position:sticky; top:0;}
+table.players td{border-bottom:1px solid #eee; padding:4px; text-align:center;}
+table.players tr.cur{background:#fff7dc;}
+table.players tr.done{opacity:.55;}
+.mini{font-size:11.5px; padding:2px 7px; border-radius:6px;}
+.namecell{font-weight:800; text-align:left; white-space:nowrap;}
+.numctl{display:inline-flex; align-items:center; gap:3px;}
+.numctl b{min-width:20px; display:inline-block;}
+
+/* modal */
+.modal-mask{position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; z-index:50;}
+.modal-mask.show{display:flex;}
+.modal{background:#fff; border-radius:14px; padding:18px; max-width:860px; width:94vw; max-height:90vh; overflow:auto;}
+.modal h2{margin-bottom:10px;}
+.modal .foot{margin-top:14px; display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;}
+.choice{display:block; width:100%; text-align:left; margin:6px 0; padding:12px; font-size:16px; border:2px solid #ccc; background:#fafafa; border-radius:10px;}
+.choice:hover{border-color:var(--blue); background:#eef7fd;}
+
+/* word blocks */
+.blockrow{display:grid; grid-template-columns:110px 1fr; gap:6px; align-items:center; margin:5px 0;}
+.blockrow .lbl{font-weight:800; color:#fff; border-radius:6px; padding:4px 6px; text-align:center; font-size:13px;}
+.lbl.y{background:#e8b32a;} .lbl.b{background:var(--blue);} .lbl.r{background:#e06a6a;} .lbl.p{background:var(--purple);} .lbl.g{background:#5da24c;}
+.sentence{margin-top:8px; padding:8px; background:#f7f7f4; border-radius:8px; font-size:15px; min-height:38px;}
+.chip{display:inline-block; border-radius:6px; padding:2px 6px; margin:1px 2px; color:#fff; font-weight:700;}
+.chip.y{background:#e8b32a;} .chip.b{background:var(--blue);} .chip.r{background:#e06a6a;} .chip.p{background:var(--purple);} .chip.g{background:#5da24c;}
+.grpchips{display:flex; flex-direction:column; gap:6px;}
+
+/* log */
+.logbox{max-height:220px; overflow:auto; font-size:12.5px; background:#fafaf8; border-radius:8px; padding:8px;}
+.logbox div{padding:2px 0; border-bottom:1px dashed #eee;}
+details{margin:8px 0;}
+details summary{cursor:pointer; font-weight:800;}
+.note{font-size:12.5px; color:#777;}
+.reftable{border-collapse:collapse; margin:6px 0;}
+.reftable td,.reftable th{border:1px solid #ccc; padding:3px 10px; font-size:13px;}
+.setupgrid{width:100%; border-collapse:collapse;}
+.setupgrid td,.setupgrid th{border-bottom:1px solid #eee; padding:4px; font-size:13.5px; text-align:center;}
+.rulepeek{font-size:12.5px; text-align:left;}
+@media (max-width:1100px){ .layout{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>罪城法則</h1>
+  <span id="phaseTag" class="tag" style="background:var(--orange)">設定中</span>
+  <span id="saveInd" style="color:#9fd89f;font-size:12.5px;"></span>
+  <span class="spacer"></span>
+  <button onclick="UI.undo()" title="復原上一步">↩ 復原</button>
+  <button onclick="UI.openSettings()">⚙ 設定</button>
+  <button onclick="UI.openRef()">📖 規則參考</button>
+  <button onclick="UI.exportJSON()">⬇ 匯出</button>
+  <button onclick="document.getElementById('importFile').click()">⬆ 匯入</button>
+  <input type="file" id="importFile" accept=".json" style="display:none" onchange="UI.importJSON(this)">
+</div>
+
+<div class="layout">
+  <!-- LEFT: board -->
+  <div>
+    <div class="panel">
+      <h2>遊戲盤 <span class="note" id="dirNote"></span></h2>
+      <div class="boardwrap">
+        <div class="board" id="board"></div>
+        <div class="sidebox">
+          <div class="jailbox"><h3>監獄</h3><div class="pieces" id="jailPieces"></div></div>
+          <div class="finishbox"><h3>已過終點</h3><ol id="finishList"></ol></div>
+        </div>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:12px;">
+      <h2>紀錄</h2>
+      <div class="logbox" id="logbox"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: control -->
+  <div>
+    <div class="panel" id="setupPanel">
+      <h2>1️⃣ 玩家與個人規則登記（荷官室）</h2>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+        <button onclick="UI.addPlayer()">＋ 新增玩家</button>
+        <button onclick="UI.loadDemo()">帶入 2樓101 範例資料</button>
+        <button onclick="UI.openReg()">📝 登記/修改個人規則</button>
+        <button onclick="UI.sortByCount()">依字數排順序</button>
+        <button class="primary" onclick="UI.startGame()">▶ 開始遊戲</button>
+      </div>
+      <table class="setupgrid" id="setupTable"></table>
+      <p class="note" style="margin-top:6px;">順序＝擲骰順序（字數少者先；同字數猜拳後用 ▲▼ 手動調整）。個人規則於觸發時才會公布。</p>
+    </div>
+
+    <div class="panel" id="playPanel" style="display:none;">
+      <h2>2️⃣ 進行回合</h2>
+      <div class="turnbar" id="turnbar"></div>
+      <div id="banners"></div>
+      <div id="suggestions"></div>
+    </div>
+
+    <div class="panel" style="margin-top:12px;">
+      <h2>玩家狀態
+        <button class="mini" onclick="UI.openTransfer()">🎫 逃脫券轉讓</button>
+        <button class="mini" onclick="UI.openGroupRule()">👑 團體規則</button>
+        <button class="mini" onclick="UI.openPaste()">📋 貼上 Excel</button>
+        <button class="mini" onclick="UI.openReg()">📝 個人規則</button>
+        <button class="mini warn" onclick="UI.allBack2()">⏪ 全員倒退兩格</button>
+        <span class="note" id="grpBrief"></span>
+      </h2>
+      <div id="teamSums" style="margin:4px 0 8px;"></div>
+      <div style="overflow-x:auto;">
+      <table class="players" id="playersTable"></table>
+      </div>
+      <details>
+        <summary>🔒 檢視全部個人規則（投影時勿展開）</summary>
+        <div id="allRules" class="rulepeek"></div>
+      </details>
+    </div>
+  </div>
+</div>
+
+<!-- modal -->
+<div class="modal-mask" id="modalMask"><div class="modal" id="modalBody"></div></div>
+
+<script>
+"use strict";
+/* ============================================================
+   罪城法則 — 荷官主控台
+   依 PDF 規則實作；感染值機制整組停用；不含任何遊戲終止條件
+   （所有人過終點也只記名次，遊戲照常可操作）。
+   骰子一律由荷官手動輸入實際擲出的結果。
+============================================================ */
+
+/* ---------- 盤面資料（照 PDF 盤面圖，6×6 外圈 20 格） ---------- */
+// 以格子的實體位置定義（row,col），顏色與圖示照 PDF。
+const CELLS = [
+  // top row
+  {r:0,c:0,color:'purple'},{r:0,c:1,color:'blue'},{r:0,c:2,color:'yellow'},
+  {r:0,c:3,color:'orange',type:'palace'},{r:0,c:4,color:'green'},{r:0,c:5,color:'purple',type:'tree'},
+  // right col
+  {r:1,c:5,color:'blue',type:'palace'},{r:2,c:5,color:'yellow'},{r:3,c:5,color:'orange',type:'tree'},{r:4,c:5,color:'green'},
+  // bottom row
+  {r:5,c:0,color:'white',type:'start'},{r:5,c:1,color:'green'},{r:5,c:2,color:'orange'},
+  {r:5,c:3,color:'yellow',type:'palace'},{r:5,c:4,color:'blue'},{r:5,c:5,color:'purple'},
+  // left col
+  {r:1,c:0,color:'green',type:'palace'},{r:2,c:0,color:'orange'},{r:3,c:0,color:'yellow',type:'tree'},{r:4,c:0,color:'blue'}
+];
+const COLORS = {purple:'var(--purple)',blue:'var(--blue)',yellow:'var(--yellow)',orange:'var(--orange)',green:'var(--green)',white:'#fff'};
+// 順時針路徑（始/終 → 沿下排往右）；逆時針＝反向。始/終為 index 0。
+function cellAt(r,c){ return CELLS.findIndex(x=>x.r===r&&x.c===c); }
+const PATH_CW = [
+  cellAt(5,0),cellAt(5,1),cellAt(5,2),cellAt(5,3),cellAt(5,4),cellAt(5,5),
+  cellAt(4,5),cellAt(3,5),cellAt(2,5),cellAt(1,5),
+  cellAt(0,5),cellAt(0,4),cellAt(0,3),cellAt(0,2),cellAt(0,1),cellAt(0,0),
+  cellAt(1,0),cellAt(2,0),cellAt(3,0),cellAt(4,0)
+];
+const PATH_CCW = [PATH_CW[0]].concat(PATH_CW.slice(1).reverse());
+const TRACK_LEN = 20;
+function path(){ return S.dir==='ccw' ? PATH_CCW : PATH_CW; }
+function cellOf(p){ return CELLS[path()[((p.progress % TRACK_LEN)+TRACK_LEN)%TRACK_LEN]]; }
+
+/* ---------- 字塊選單（照 Excel 荷官登記表；感染值代價保留但無作用） ---------- */
+const BLOCKS = {
+  subj: [
+    {k:'jail',   t:'當在監獄裡的玩家'},
+    {k:'same',   t:'當跟我在同一格的玩家'},
+    {k:'last',   t:'當最後一名的玩家'},
+    {k:'palace', t:'當在皇宮中的玩家'},
+    {k:'tree',   t:'當在高崗樹下的玩家'},
+    {k:'first',  t:'當第一名的玩家'}
+  ],
+  event: [
+    {k:'roll1',     t:'擲到1'},
+    {k:'roll2',     t:'擲到2'},
+    {k:'roll3',     t:'擲到3'},
+    {k:'diceJail',  t:'擲骰後被困在監獄'},
+    {k:'moveByPersonal', t:'根據個人規則移動'},
+    {k:'useTicket', t:'使用一張逃脫券'},
+    {k:'diceEscape',t:'擲骰後逃脫監獄'},
+    {k:'moveByGroup', t:'根據團體規則移動'},
+    {k:'intoJail',  t:'被關進監獄'}
+  ],
+  cost: [
+    {k:'infect1', t:'且我感染值+1，則'},
+    {k:'back1',   t:'且我後退一格，則'},
+    {k:'peace1',  t:'且我交出一枚皮斯，則'}
+  ],
+  target: [
+    {k:'me',    t:'我'},
+    {k:'first', t:'第一名的玩家'},
+    {k:'last',  t:'最後一名的玩家'},
+    {k:'same',  t:'與我在同一格的玩家'}
+  ],
+  effect: [
+    {k:'specialDie', t:'下次投擲時使用特殊骰'},
+    {k:'gainTicket', t:'獲得一張逃脫券'},
+    {k:'loseTicket', t:'失去一張逃脫券'},
+    {k:'pause',      t:'暫停一回合'},
+    {k:'back1',      t:'後退一格'}
+  ]
+};
+const CATS = [['subj','條件發生對象','y'],['event','條件發生事件','b'],['cost','代價','r'],['target','對象','p'],['effect','效果','g']];
+function blockText(cat,k){ if(!k) return ''; if(k.startsWith('custom:')) return k.slice(7); const b=BLOCKS[cat].find(x=>x.k===k); return b?b.t:''; }
+function ruleSentence(pl){
+  return CATS.map(([cat])=>blockText(cat,pl.blocks[cat])).filter(Boolean).join(' ');
+}
+function ruleCharCount(pl){
+  return CATS.map(([cat])=>blockText(cat,pl.blocks[cat])).join('').replace(/\s/g,'').length;
+}
+
+/* ---------- 貼上 Excel 匯入（tab 分隔；標點/截斷容錯） ---------- */
+function normText(s){ return String(s||'').replace(/\s+/g,'').replace(/[,、]/g,'，'); }
+function matchBlock(cat, raw){
+  const t=(raw||'').trim(); if(!t) return null;
+  const n=normText(t);
+  for(const b of BLOCKS[cat]) if(normText(b.t)===n) return b.k;
+  for(const b of BLOCKS[cat]){ const bn=normText(b.t);
+    if((bn.startsWith(n)||n.startsWith(bn)) && Math.min(bn.length,n.length)>=4) return b.k; }
+  return 'custom:'+t;
+}
+const PASTE_LABELS=['名字','條件發生對象','條件發生事件','代價','對象','效果','經過排序後'];
+function parsePaste(text){
+  const rows=[]; let orderIdx=null;
+  for(const line of String(text).split(/\r?\n/)){
+    if(!line.trim()) continue;
+    const cells=line.split('\t').map(c=>c.trim());
+    if(cells.slice(0,6).some(c=>PASTE_LABELS.includes(c))){            // 表頭列：記住 擲骰子順序 欄位置
+      const oi=cells.findIndex(c=>c.includes('擲骰子順序')||c==='順序');
+      if(oi>=0) orderIdx=oi;
+      continue;
+    }
+    const head=cells[0]||'', blocks=cells.slice(1,6);
+    while(blocks.length<5) blocks.push('');
+    if(blocks.every(c=>!c)) continue;                                   // 無字塊 → 略過（避免誤清空）
+    // 擲骰子順序：優先用表頭定位的欄；否則剛好 7 欄且第 7 欄是數字時採用
+    let ord=null, raw = orderIdx!=null ? cells[orderIdx] : (cells.length===7 ? cells[6] : null);
+    if(raw!=null && raw!=='' && !isNaN(Number(raw))) ord=Math.round(Number(raw));
+    rows.push({head, ord, mapped:{subj:matchBlock('subj',blocks[0]), event:matchBlock('event',blocks[1]),
+      cost:matchBlock('cost',blocks[2]), target:matchBlock('target',blocks[3]), effect:matchBlock('effect',blocks[4])}});
+  }
+  return rows;
+}
+function findPasteTarget(head){
+  const h=head.trim().toUpperCase();
+  return S.players.find(p=>p.seat.toUpperCase()===h) || S.players.find(p=>p.name===head.trim()) || null;
+}
+
+/* ---------- 團體規則短句（照 PDF 全集；可同時登記多條、隨時增修） ---------- */
+const GRP = {
+  y: [
+    {k:'front', t:'在最前面的玩家，'},
+    {k:'alljail', t:'所有玩家，被關在監獄時，'},
+    {k:'allturn', t:'所有玩家，在輪到自己時，'},
+    {k:'inf5', t:'所有玩家，感染值達到 5 以上時，'}
+  ],
+  b: [
+    {k:'if1', t:'若擲到 1，前進一格，並', dice:1},
+    {k:'if2', t:'若擲到 2，前進兩格，並', dice:2},
+    {k:'if3', t:'若擲到 3，前進三格，並', dice:3},
+    {k:'ifjail', t:'若擲骰子擲出監獄，可不用移動到監獄，並', dice:'監獄'},
+    {k:'mayback2', t:'可倒退兩格，並', optional:true},
+    {k:'maydrop',  t:'可丟棄逃脫券，並', optional:true},
+    {k:'maypeace', t:'可交出一枚皮斯，並', optional:true},
+    {k:'mayinf2',  t:'可感染值+2，並', optional:true},
+    {k:'mayskiproll', t:'可放棄擲骰子，並', optional:true}
+  ],
+  g: [
+    {k:'pushback', t:'可使一名玩家後退一格'},
+    {k:'reroll',   t:'可再擲一次骰子'},
+    {k:'fwd1',     t:'前進一格'},
+    {k:'ticket',   t:'可獲得一張逃脫券'},
+    {k:'back1',    t:'後退一格'},
+    {k:'nextspecial', t:'下個玩家可投擲特殊骰子'}
+  ]
+};
+function grpText(rule){ if(!rule) return '';
+  return ['y','b','g'].map(c=>{ const it=GRP[c].find(x=>x.k===rule[c]); return it?it.t:''; }).join(''); }
+/* 團體規則黃色主詞範圍判定 */
+function scopeOk(scope, p){
+  return scope==='allturn' ? true :
+         scope==='front'   ? leaders().first.includes(p) :
+         scope==='alljail' ? p.jailed :
+         scope==='inf5'    ? p.infect>=5 : true;
+}
+
+/* ---------- 狀態 ---------- */
+let S = null;
+function freshState(){
+  return {
+    dir:'ccw', gameName:'1樓', phase:'setup',   // setup | play
+    players:[], order:[],                       // order = player id 陣列（擲骰順序）
+    turnPtr:0, groupRules:[],
+    pendingRolls:0,                             // 本回合尚待輸入的額外擲骰數
+    finishSeq:[],                               // 過終點順序（player id）
+    firedThisTurn:{},                           // ruleOwnerId -> 次數（提示重複觸發用）
+    log:[]
+  };
+}
+function newPlayer(seat){
+  return {id:'P'+Math.random().toString(36).slice(2,8), seat, name:seat, team:'',
+    blocks:{subj:null,event:null,cost:null,target:null,effect:null},
+    progress:0, jailed:false, tickets:0, peace:0, infect:0,
+    skipNext:false, specialNext:false, finished:false};
+}
+function normalizeState(s){ // 舊存檔相容
+  if(!s.groupRules) s.groupRules = s.groupRule ? [s.groupRule] : [];
+  delete s.groupRule;
+  (s.players||[]).forEach(p=>{ if(typeof p.infect!=='number') p.infect=0; });
+  return s;
+}
+const byId = id => S.players.find(p=>p.id===id);
+function activePlayers(){ return S.players.filter(p=>!p.finished); }
+function curPlayer(){ if(S.phase!=='play') return null; const id=S.order[S.turnPtr]; return byId(id)||null; }
+
+/* 第一名/最後一名（以 progress 比較；僅算未完賽者；完賽者恆為最前） */
+function leaders(){
+  const act=activePlayers(); if(!act.length) return {first:[],last:[]};
+  const mx=Math.max(...act.map(p=>p.progress)), mn=Math.min(...act.map(p=>p.progress));
+  return {first:act.filter(p=>p.progress===mx), last:act.filter(p=>p.progress===mn)};
+}
+function samePos(a,b){ return !a.jailed&&!b.jailed&&!a.finished&&!b.finished&&(a.progress%TRACK_LEN)===(b.progress%TRACK_LEN); }
+
+/* ---------- 存檔 / 復原 ---------- */
+const UNDO=[];
+function snapshot(){ UNDO.push(JSON.stringify(S)); if(UNDO.length>150) UNDO.shift(); }
+function save(){ // 每一步操作即時自動存檔；前一動另存備份，避免紀錄消失
+  try{
+    S.savedAt=Date.now();
+    const key='zuicheng_'+S.gameName;
+    const prev=localStorage.getItem(key);
+    if(prev) localStorage.setItem('zuicheng_bak__'+S.gameName, prev);
+    localStorage.setItem(key, JSON.stringify(S));
+    const el=document.getElementById('saveInd');
+    if(el) el.textContent='💾 已自動存檔 '+new Date(S.savedAt).toLocaleTimeString('zh-TW',{hour12:false});
+  }catch(e){
+    const el=document.getElementById('saveInd');
+    if(el){ el.textContent='⚠ 自動存檔失敗，請用「匯出」保存'; el.style.color='#ffb3b3'; }
+  }
+}
+function log(msg){ S.log.push(`[${new Date().toLocaleTimeString('zh-TW',{hour12:false})}] ${msg}`); if(S.log.length>400) S.log.shift(); }
+
+/* ---------- 事件 → 規則觸發掃描 ----------
+   actor = 做出事件的玩家；回傳建議卡陣列並顯示。
+   個人規則：條件發生對象過濾 actor；「我」＝規則擁有者。 */
+const EVENT_NAMES = {roll1:'擲到1', roll2:'擲到2', roll3:'擲到3', diceJail:'擲骰後被困在監獄',
+  moveByPersonal:'根據個人規則移動', useTicket:'使用一張逃脫券', diceEscape:'擲骰後逃脫監獄',
+  moveByGroup:'根據團體規則移動', intoJail:'被關進監獄'};
+
+function subjMatch(subjKey, actor, owner, ctx){
+  switch(subjKey){
+    case 'jail':   return ctx.actorWasJailed!==undefined ? ctx.actorWasJailed : actor.jailed;
+    case 'same':   return actor.id!==owner.id && samePos(actor,owner);
+    case 'first':  return leaders().first.includes(actor);
+    case 'last':   return leaders().last.includes(actor);
+    case 'palace': return !actor.jailed && !actor.finished && cellOf(actor).type==='palace';
+    case 'tree':   return !actor.jailed && !actor.finished && cellOf(actor).type==='tree';
+    default: return false; // 自訂字塊 → 不自動判定
+  }
+}
+function fireEvent(evKey, actor, ctx={}){
+  if(S.phase!=='play') return;
+  // 個人規則
+  for(const owner of S.players){
+    const b=owner.blocks;
+    if(!b.event || b.event!==evKey) continue;           // 事件不符（自訂事件不自動觸發）
+    if(!b.subj || b.subj.startsWith('custom:')) { if(b.subj) suggestManual(owner, actor, evKey); continue; }
+    if(!subjMatch(b.subj, actor, owner, ctx)) continue;
+    suggestPersonal(owner, actor, evKey);
+  }
+  // 團體規則（擲骰類；逐條檢查）
+  for(const rule of S.groupRules){
+    const mid=GRP.b.find(x=>x.k===rule.b);
+    if(mid && mid.dice && evKey==='roll'+mid.dice){
+      const wasJailed = ctx.actorWasJailed!==undefined?ctx.actorWasJailed:actor.jailed;
+      const ok = rule.y==='alljail' ? wasJailed : scopeOk(rule.y, actor);
+      if(ok) suggestGroup(actor, `擲到 ${mid.dice}`, rule);
+    }
+  }
+}
+
+/* ---------- 建議卡 ---------- */
+let SUGGS=[]; let SUGGID=0;
+function suggestPersonal(owner, actor, evKey){
+  const rep=S.firedThisTurn[owner.id]||0;
+  SUGGS.push({id:++SUGGID, kind:'personal', ownerId:owner.id, actorId:actor.id, evKey, rep});
+  render();
+}
+function suggestManual(owner, actor, evKey){
+  SUGGS.push({id:++SUGGID, kind:'manual', ownerId:owner.id, actorId:actor.id, evKey});
+  render();
+}
+function suggestGroup(actor, why, rule){
+  SUGGS.push({id:++SUGGID, kind:'group', actorId:actor.id, why, rule:{...rule}});
+  render();
+}
+function dropSugg(id){ SUGGS=SUGGS.filter(s=>s.id!==id); render(); }
+
+/* 解析個人規則對象 → 玩家清單 */
+function resolveTargets(owner, key){
+  switch(key){
+    case 'me': return [owner];
+    case 'first': return leaders().first;
+    case 'last': return leaders().last;
+    case 'same': return activePlayers().filter(p=>p.id!==owner.id && samePos(p,owner));
+    default: return [];
+  }
+}
+function applyPersonal(sid){
+  const sg=SUGGS.find(x=>x.id===sid); if(!sg) return;
+  const owner=byId(sg.ownerId), actor=byId(sg.actorId);
+  snapshot();
+  // 代價（由規則擁有者支付；感染值停用 → 無代價）
+  const cost=owner.blocks.cost;
+  if(cost==='back1'){ moveBy(owner,-1,'personal'); log(`${owner.name} 支付代價：後退一格`); }
+  else if(cost==='peace1'){ owner.peace--; log(`${owner.name} 支付代價：交出一枚皮斯`); }
+  else if(cost==='infect1'){ owner.infect++; log(`${owner.name} 支付代價：感染值+1（現為 ${owner.infect}）`); }
+  // 效果
+  const tKey=owner.blocks.target, eKey=owner.blocks.effect;
+  const targets=resolveTargets(owner,tKey);
+  if(!targets.length){ log(`⚠ ${owner.name} 的規則效果找不到對象（${blockText('target',tKey)}），請手動處理`); }
+  for(const t of targets) applyEffect(t, eKey, 'personal');
+  S.firedThisTurn[owner.id]=(S.firedThisTurn[owner.id]||0)+1;
+  log(`📣 個人規則公布並生效 — ${owner.name}：「${ruleSentence(owner)}」（由 ${actor.name} 的 ${EVENT_NAMES[sg.evKey]||sg.evKey} 觸發）`);
+  dropSugg(sid); save(); render();
+}
+function applyEffect(t, eKey, srcKind){
+  switch(eKey){
+    case 'specialDie': t.specialNext=true; log(`→ ${t.name} 下次投擲使用特殊骰`); break;
+    case 'gainTicket': t.tickets++; log(`→ ${t.name} 獲得一張逃脫券（共 ${t.tickets}）`); break;
+    case 'loseTicket': if(t.tickets>0){t.tickets--; log(`→ ${t.name} 失去一張逃脫券（剩 ${t.tickets}）`);} else log(`→ ${t.name} 沒有逃脫券可失去`); break;
+    case 'pause': t.skipNext=true; log(`→ ${t.name} 暫停一回合`); break;
+    case 'back1': moveBy(t,-1,srcKind); break;
+    default: log(`⚠ 自訂效果「${blockText('effect',eKey)}」請荷官手動執行`);
+  }
+}
+
+/* ---------- 移動 ---------- */
+function moveBy(p, n, srcKind){ // srcKind: 'dice' | 'personal' | 'group' | 'manual'
+  if(p.finished) return;
+  const before=p.progress;
+  p.progress=Math.max(0,p.progress+n);
+  const dirTxt = n>=0?`前進 ${n} 格`:`後退 ${-n} 格`;
+  log(`${p.name} ${dirTxt}（${before}→${p.progress}）`);
+  if(!p.jailed && p.progress>=TRACK_LEN && !p.finished){
+    p.finished=true; S.finishSeq.push(p.id);
+    log(`🏁 ${p.name} 通過終點線！目前名次 第${S.finishSeq.length}名`);
+  }
+  if(srcKind==='personal') fireEvent('moveByPersonal', p);
+  if(srcKind==='group')    fireEvent('moveByGroup', p);
+  if(!p.finished && !p.jailed && (srcKind==='dice')) landingCheck(p);
+}
+function landingCheck(p){
+  const c=cellOf(p);
+  if(c.type==='palace') openPalace(p);
+  else if(c.type==='tree') openTree(p);
+}
+
+/* ---------- 擲骰輸入 ---------- */
+function inputRoll(face){ // face: 1|2|3|'監獄'|'逃脫'
+  const p=curPlayer(); if(!p) return;
+  snapshot();
+  if(S.pendingRolls>0) S.pendingRolls--;   // 消耗一次「可再擲」
+  const wasJailed=p.jailed;
+  const dieName = p.specialNext ? '特殊骰' : '普通骰';
+  log(`🎲 ${p.name} 擲${dieName} → ${face}`);
+  if(p.specialNext) p.specialNext=false;
+
+  if(typeof face==='number') fireEvent('roll'+face, p, {actorWasJailed:wasJailed});
+
+  if(wasJailed){
+    if(face==='逃脫'){
+      p.jailed=false;
+      log(`🔓 ${p.name} 擲出逃脫，成功逃脫監獄（回到標記格），可立即擲骰`);
+      fireEvent('diceEscape', p);
+      S.pendingRolls++;
+    }else{
+      log(`⛓ ${p.name} 逃脫失敗，留在監獄`);
+    }
+  }else{
+    if(face==='監獄'){
+      // 團體規則可豁免（取第一條符合的；alljail 不適用於未入獄者）
+      const ex=S.groupRules.find(r=>r.b==='ifjail' && (r.y==='alljail'?false:scopeOk(r.y,p)));
+      if(ex){ suggestGroupJail(p, ex); save(); render(); return; }
+      jailPlayer(p, true);
+    }else if(face==='逃脫'){
+      log(`（${p.name} 不在監獄，擲出逃脫無特別效果）`);
+    }else{
+      moveBy(p, face, 'dice');
+    }
+  }
+  save(); render();
+}
+function jailPlayer(p, byDice){
+  p.jailed=true;
+  log(`⛓ ${p.name} ${byDice?'擲出監獄，':''}移動到監獄（標記格：第 ${p.progress%TRACK_LEN} 格）`);
+  if(byDice) fireEvent('diceJail', p, {actorWasJailed:false});
+  fireEvent('intoJail', p, {actorWasJailed:false});
+}
+function useTicketEscape(){
+  const p=curPlayer(); if(!p||!p.jailed||p.tickets<1) return;
+  snapshot();
+  p.tickets--; p.jailed=false;
+  log(`🎫 ${p.name} 使用一張逃脫券逃脫監獄（剩 ${p.tickets}），可立即擲骰`);
+  fireEvent('useTicket', p);
+  S.pendingRolls++;
+  save(); render();
+}
+
+/* 團體規則：監獄豁免建議卡 */
+function suggestGroupJail(p, rule){
+  SUGGS.push({id:++SUGGID, kind:'groupJail', actorId:p.id, rule:{...rule}});
+  render();
+}
+function applyGroupJail(sid, accept){
+  const sg=SUGGS.find(x=>x.id===sid); if(!sg) return;
+  const p=byId(sg.actorId);
+  snapshot();
+  if(accept){
+    log(`👑 依團體規則，${p.name} 擲出監獄但不用移動到監獄`);
+    openGroupEffect(p, sg.rule); // 「並…」的綠色效果
+  }else{
+    jailPlayer(p, true);
+  }
+  dropSugg(sid); save(); render();
+}
+
+/* 團體規則：綠色效果執行（人為選擇對象時開 modal） */
+function openGroupEffect(actor, rule){
+  const eff=GRP.g.find(x=>x.k===rule.g); if(!eff) return;
+  if(eff.k==='pushback'){
+    openModal(`<h2>團體規則效果：可使一名玩家後退一格</h2>
+      ${activePlayers().map(p=>`<button class="choice" onclick="UI.grpPush('${p.id}')">${p.seat}｜${p.name}</button>`).join('')}
+      <div class="foot"><button onclick="closeModal()">放棄</button></div>`);
+  }else{
+    applyGroupEffect(actor, eff.k);
+  }
+}
+function applyGroupEffect(actor, k){
+  switch(k){
+    case 'reroll': S.pendingRolls++; log(`👑 團體規則：${actor.name} 可再擲一次骰子`); break;
+    case 'fwd1':  moveBy(actor, 1, 'group'); break;
+    case 'back1': moveBy(actor,-1, 'group'); break;
+    case 'ticket': actor.tickets++; log(`👑 團體規則：${actor.name} 獲得一張逃脫券（共 ${actor.tickets}）`); break;
+    case 'nextspecial': {
+      const nid=nextActiveId(); const np=nid?byId(nid):null;
+      if(np){ np.specialNext=true; log(`👑 團體規則：下個玩家 ${np.name} 可投擲特殊骰子`);} break;
+    }
+  }
+  save(); render();
+}
+/* 團體規則「可…並…」自主發動（idx＝第幾條規則） */
+function invokeGroupOptional(idx){
+  const p=curPlayer(); const rule=S.groupRules[idx]; if(!p||!rule) return;
+  const mid=GRP.b.find(x=>x.k===rule.b); if(!mid||!mid.optional) return;
+  snapshot();
+  // 代價
+  if(mid.k==='mayback2') moveBy(p,-2,'group');
+  else if(mid.k==='maydrop'){ if(p.tickets<1){log('⚠ 沒有逃脫券可丟棄');render();return;} p.tickets--; log(`${p.name} 丟棄一張逃脫券`); }
+  else if(mid.k==='maypeace'){ p.peace--; log(`${p.name} 交出一枚皮斯`); }
+  else if(mid.k==='mayinf2'){ p.infect+=2; log(`${p.name} 感染值+2（現為 ${p.infect}）`); }
+  else if(mid.k==='mayskiproll'){ S.pendingRolls=0; log(`${p.name} 放棄本回合擲骰`); }
+  log(`👑 ${p.name} 發動團體規則：「${grpText(rule)}」`);
+  openGroupEffect(p, rule);
+  save(); render();
+}
+
+/* ---------- 皇宮 / 高岡樹下 ---------- */
+function openPalace(p){
+  openModal(`<h2>👑 ${p.name} 擲骰直達皇宮 — 三選一獎勵</h2>
+    <button class="choice" onclick="UI.palace('${p.id}','ticket')">🎫 獲得逃脫券</button>
+    <button class="choice" onclick="UI.palace('${p.id}','reroll')">🎲 再擲一次骰子</button>
+    <button class="choice" onclick="UI.palace('${p.id}','group')">📜 登記／修改團體規則（30 秒內組句）</button>
+    <div class="foot"><button onclick="closeModal()">放棄獎勵</button></div>`);
+}
+function openTree(p){
+  openModal(`<h2>🌲 ${p.name} 擲骰直達高岡樹下 — 二選一</h2>
+    <button class="choice" onclick="UI.tree('${p.id}','stay')">留在高岡樹下：獲得 1 張逃脫券，感染值+2</button>
+    <button class="choice" onclick="UI.tree('${p.id}','leave')">離開高岡樹下：後退 1 格，感染值不增加</button>`);
+}
+
+/* ---------- 回合推進 ---------- */
+function nextActiveId(){
+  if(!S.order.length) return null;
+  for(let i=1;i<=S.order.length;i++){
+    const id=S.order[(S.turnPtr+i)%S.order.length];
+    if(!byId(id).finished) return id;
+  }
+  return null;
+}
+function nextTurn(){
+  const p=curPlayer();
+  if(p) log(`—— ${p.name} 回合結束 ——`);
+  SUGGS=[]; S.firedThisTurn={}; S.pendingRolls=0;
+  if(activePlayers().length===0){ log('（所有玩家皆已過終點；遊戲不設終止條件，可繼續操作或查看名次）'); save(); render(); return; }
+  snapshot();
+  do{ S.turnPtr=(S.turnPtr+1)%S.order.length; }while(byId(S.order[S.turnPtr]).finished);
+  const np=curPlayer();
+  log(`▶ 輪到 ${np.name}`);
+  if(np.skipNext){
+    log(`⏸ ${np.name} 暫停一回合（自動跳過）`);
+    np.skipNext=false; save(); nextTurn(); return;
+  }
+  save(); render();
+}
+
+/* ============================================================ UI */
+const $=q=>document.querySelector(q);
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function openModal(html){ $('#modalBody').innerHTML=html; $('#modalMask').classList.add('show'); }
+function closeModal(){ $('#modalMask').classList.remove('show'); }
+$('#modalMask').addEventListener('click',e=>{ if(e.target.id==='modalMask') closeModal(); });
+
+function render(){
+  $('#phaseTag').textContent = S.phase==='setup' ? '設定中' : '遊戲進行中（'+S.gameName+'）';
+  $('#dirNote').textContent = '行進方向：'+(S.dir==='cw'?'順時針（始/終沿下排往右）':'逆時針（始/終沿左排往上）')+'，可在設定切換';
+  renderBoard(); renderPlayers(); renderSetup(); renderTurn(); renderSuggs(); renderLog();
+  $('#setupPanel').style.display = S.phase==='setup' ? '' : 'none';
+  $('#playPanel').style.display  = S.phase==='play' ? '' : 'none';
+  $('#grpBrief').textContent = S.groupRules.length
+    ? `現行 ${S.groupRules.length} 條：`+S.groupRules.map(r=>'「'+grpText(r)+'」').join(' ')
+    : '（尚未登記團體規則，可隨時新增）';
+}
+function renderBoard(){
+  const grid=[];
+  for(let r=0;r<6;r++)for(let c=0;c<6;c++)grid.push({r,c,cell:null});
+  CELLS.forEach((cl,i)=>{ grid[cl.r*6+cl.c].cell={...cl, i}; });
+  const P=path();
+  $('#board').innerHTML = grid.map(g=>{
+    if(!g.cell) return `<div class="cell blank"></div>`;
+    const cl=g.cell;
+    const stepNo = P.indexOf(cl.i); // 第幾步
+    const icon = cl.type==='palace'?'👑':cl.type==='tree'?'🌲':cl.type==='start'?'始／終':'';
+    const here = S.players.filter(p=>!p.jailed&&!p.finished&&S.phase==='play'&&(p.progress%TRACK_LEN)===stepNo);
+    const cur=curPlayer();
+    return `<div class="cell ${cl.type==='start'?'start':''}" style="background:${COLORS[cl.color]}">
+      <span class="idx">${stepNo}</span>
+      <span class="icon ${cl.type==='start'?'startlabel':''}">${icon}</span>
+      <div class="pieces ${here.length>8?'dense':''}">${here.map(p=>`<span class="piece ${cur&&cur.id===p.id?'cur':''}" title="${esc(p.name)}">${esc(p.seat)}</span>`).join('')}</div>
+    </div>`;
+  }).join('');
+  const cur=curPlayer();
+  $('#jailPieces').innerHTML = S.players.filter(p=>p.jailed).map(p=>`<span class="piece ${cur&&cur.id===p.id?'cur':''}" title="標記格 ${p.progress%TRACK_LEN}">${esc(p.seat)}</span>`).join('')||'<span class="note" style="color:#eee">（無人）</span>';
+  $('#finishList').innerHTML = S.finishSeq.map(id=>`<li>${esc(byId(id).name)}</li>`).join('');
+}
+function renderSetup(){
+  if(S.phase!=='setup') { $('#setupTable').innerHTML=''; return; }
+  $('#setupTable').innerHTML = `<tr><th>順序</th><th>座位</th><th>名字</th><th>隊伍</th><th>規則字數</th><th>已登記</th><th></th></tr>`+
+    S.order.map((id,i)=>{
+      const p=byId(id);
+      const reg=CATS.every(([c])=>p.blocks[c]);
+      return `<tr>
+        <td><b>${i+1}</b> <button class="mini" onclick="UI.moveOrder('${p.id}',-1)">▲</button><button class="mini" onclick="UI.moveOrder('${p.id}',1)">▼</button></td>
+        <td><b>${esc(p.seat)}</b></td>
+        <td><input type="text" value="${esc(p.name)}" style="width:90px" onchange="UI.rename('${p.id}',this.value)"></td>
+        <td><select onchange="UI.setTeam('${p.id}',this.value)">
+          ${['','橡樹','楊樹','栗樹'].map(t=>`<option value="${t}" ${p.team===t?'selected':''}>${t||'—'}</option>`).join('')}
+        </select></td>
+        <td>${ruleCharCount(p)}</td>
+        <td>${reg?'✅':(CATS.some(([c])=>p.blocks[c])?'◐':'—')}</td>
+        <td><button class="mini bad" onclick="UI.removePlayer('${p.id}')">刪</button></td>
+      </tr>`;
+    }).join('');
+}
+function renderPlayers(){
+  const {first,last}=leaders(); const cur=curPlayer();
+  // 團隊感染值加總
+  const teams={};
+  for(const p of S.players) if(p.team) teams[p.team]=(teams[p.team]||0)+p.infect;
+  $('#teamSums').innerHTML = Object.keys(teams).length
+    ? '團隊感染值加總：'+Object.entries(teams).map(([t,v])=>`<span class="tag team" style="font-size:13px">${esc(t)} 🦠${v}</span>`).join(' ')
+    : '<span class="note">（幫玩家設定隊伍後，這裡會顯示各團隊感染值加總）</span>';
+  $('#playersTable').innerHTML = `<tr><th>#</th><th>玩家</th><th>位置</th><th>狀態</th><th>🎫逃脫券</th><th>🪙皮斯</th><th>🦠感染值</th><th>操作</th></tr>`+
+    S.order.map((id,i)=>{
+      const p=byId(id);
+      const rank = p.finished ? `第${S.finishSeq.indexOf(p.id)+1}名` : '';
+      const tags=[
+        p.finished?`<span class="tag" style="background:#b8860b">🏁${rank}</span>`:'',
+        p.jailed?'<span class="tag jail">監獄</span>':'',
+        p.skipNext?'<span class="tag skip">暫停中</span>':'',
+        p.specialNext?'<span class="tag special">特殊骰</span>':'',
+        (!p.finished&&first.includes(p))?'<span class="tag" style="background:#2e86c1">最前</span>':'',
+        (!p.finished&&last.includes(p))?'<span class="tag" style="background:#7f8c8d">最後</span>':''
+      ].join('');
+      return `<tr class="${cur&&cur.id===p.id?'cur':''} ${p.finished?'done':''}">
+        <td>${i+1}</td>
+        <td class="namecell">${esc(p.seat)}｜${esc(p.name)}${p.team?`<span class="tag team">${esc(p.team)}</span>`:''}</td>
+        <td><span class="numctl"><button class="mini" onclick="UI.nudge('${p.id}','progress',-1)">−</button><b>${p.progress}</b><button class="mini" onclick="UI.nudge('${p.id}','progress',1)">＋</button></span></td>
+        <td>${tags}
+          <button class="mini" onclick="UI.toggleJail('${p.id}')">${p.jailed?'釋放':'入獄'}</button>
+          <button class="mini" onclick="UI.togglePause('${p.id}')">${p.skipNext?'取消暫停':'暫停'}</button>
+          <button class="mini" onclick="UI.toggleSpecial('${p.id}')">${p.specialNext?'取消特骰':'特骰'}</button>
+        </td>
+        <td><span class="numctl"><button class="mini" onclick="UI.nudge('${p.id}','tickets',-1)">−</button><b>${p.tickets}</b><button class="mini" onclick="UI.nudge('${p.id}','tickets',1)">＋</button></span></td>
+        <td><span class="numctl"><button class="mini" onclick="UI.nudge('${p.id}','peace',-1)">−</button><b>${p.peace}</b><button class="mini" onclick="UI.nudge('${p.id}','peace',1)">＋</button></span></td>
+        <td><span class="numctl"><button class="mini" onclick="UI.nudge('${p.id}','infect',-1)">−</button><b>${p.infect}</b><button class="mini" onclick="UI.nudge('${p.id}','infect',1)">＋</button></span></td>
+        <td><button class="mini" onclick="UI.openEdit('${p.id}')">✏️ 編輯</button></td>
+      </tr>`;
+    }).join('');
+  $('#allRules').innerHTML = S.players.map(p=>{
+    const s=ruleSentence(p);
+    return `<div><b>${esc(p.seat)}｜${esc(p.name)}</b>（${ruleCharCount(p)}字）：${s?esc(s):'<i>未登記</i>'}</div>`;
+  }).join('');
+}
+function renderTurn(){
+  if(S.phase!=='play'){ $('#turnbar').innerHTML=''; return; }
+  const p=curPlayer();
+  if(!p){ $('#turnbar').innerHTML='<i>無玩家</i>'; return; }
+  const dieSet = p.specialNext ? '特殊骰（1、2、2、3、3、3）' : '普通骰（1、2、2、3、監獄、逃脫）';
+  let html=`<span class="who">▶ 輪到</span>
+    <select style="font-size:17px;font-weight:800;padding:6px" onchange="UI.setCurrent(this.value)" title="現實中誰在擲骰就切到誰">
+      ${S.order.map(id=>{const q=byId(id);return `<option value="${q.id}" ${q.id===p.id?'selected':''}>${esc(q.seat)}｜${esc(q.name)}${q.finished?'（已完賽）':''}</option>`;}).join('')}
+    </select>`;
+  if(p.jailed) html+=`<span class="tag jail">監獄中（標記格 ${p.progress%TRACK_LEN}）</span>`;
+  if(p.specialNext) html+=`<span class="tag special">使用特殊骰</span>`;
+  html+=`<span class="note">請輸入實際擲出：${dieSet}</span>`;
+  html+=`<div class="dicebtns">
+    <button onclick="UI.roll(1)">1</button>
+    <button onclick="UI.roll(2)">2</button>
+    <button onclick="UI.roll(3)">3</button>`;
+  if(!p.specialNext){
+    html+=`<button class="jailface" onclick="UI.roll('監獄')">監獄</button>
+    <button class="escface" onclick="UI.roll('逃脫')">逃脫</button>`;
+  }
+  html+=`</div>`;
+  if(p.jailed && p.tickets>0) html+=`<button class="good" onclick="UI.useTicket()">🎫 使用逃脫券逃脫（擲骰前）</button>`;
+  if(S.pendingRolls>0) html+=`<span class="tag" style="background:var(--green)">尚可擲 ${S.pendingRolls} 次</span>`;
+  html+=`<span class="spacer" style="flex:1"></span><button class="primary" onclick="UI.next()">下一位 ⏭</button>`;
+  $('#turnbar').innerHTML=html;
+
+  // 團體規則自主發動 banner（逐條）
+  let banners='';
+  S.groupRules.forEach((rule,i)=>{
+    const mid=GRP.b.find(x=>x.k===rule.b);
+    if(mid&&mid.optional&&!p.finished&&scopeOk(rule.y,p))
+      banners+=`<div class="banner">👑 團體規則${S.groupRules.length>1?` ${i+1}`:''} 可發動：「${esc(grpText(rule))}」
+        <button class="warn" onclick="UI.invokeGroup(${i})">發動</button></div>`;
+  });
+  $('#banners').innerHTML=banners;
+}
+function renderSuggs(){
+  $('#suggestions').innerHTML = SUGGS.map(sg=>{
+    if(sg.kind==='personal'){
+      const o=byId(sg.ownerId), a=byId(sg.actorId);
+      return `<div class="sugg">
+        <div class="src">⚡ 個人規則觸發偵測（${esc(a.name)} 的「${EVENT_NAMES[sg.evKey]||sg.evKey}」）${sg.rep?`<b style="color:var(--danger)">（本回合第 ${sg.rep+1} 次觸發同一規則）</b>`:''}</div>
+        <div class="rule">${esc(o.seat)}｜${esc(o.name)}：「${esc(ruleSentence(o))}」</div>
+        <div class="btns"><button class="good" onclick="UI.applySugg(${sg.id})">✅ 支付代價並執行</button>
+        <button onclick="UI.dropSugg(${sg.id})">略過（不生效）</button></div>
+      </div>`;
+    }
+    if(sg.kind==='manual'){
+      const o=byId(sg.ownerId), a=byId(sg.actorId);
+      return `<div class="sugg"><div class="src">⚠ 含自訂字塊，請荷官人工判定（${esc(a.name)} 觸發）</div>
+        <div class="rule">${esc(o.seat)}｜${esc(o.name)}：「${esc(ruleSentence(o))}」</div>
+        <div class="btns"><button onclick="UI.dropSugg(${sg.id})">知道了（人工處理）</button></div></div>`;
+    }
+    if(sg.kind==='group'){
+      const a=byId(sg.actorId);
+      return `<div class="sugg"><div class="src">👑 團體規則觸發（${esc(a.name)} ${esc(sg.why)}）</div>
+        <div class="rule">「${esc(grpText(sg.rule))}」</div>
+        <div class="btns"><button class="good" onclick="UI.applyGroupSugg(${sg.id})">✅ 執行後段效果</button>
+        <button onclick="UI.dropSugg(${sg.id})">略過</button></div></div>`;
+    }
+    if(sg.kind==='groupJail'){
+      const a=byId(sg.actorId);
+      return `<div class="sugg"><div class="src">👑 團體規則（${esc(a.name)} 擲出監獄）</div>
+        <div class="rule">「${esc(grpText(sg.rule))}」— 可不用移動到監獄</div>
+        <div class="btns"><button class="good" onclick="UI.applyGroupJail(${sg.id},true)">✅ 豁免＋執行後段效果</button>
+        <button class="bad" onclick="UI.applyGroupJail(${sg.id},false)">照常入獄</button></div></div>`;
+    }
+  }).join('');
+}
+function renderLog(){
+  $('#logbox').innerHTML=[...S.log].reverse().map(l=>`<div>${esc(l)}</div>`).join('');
+}
+
+/* ---------- 登記 modal ---------- */
+function regModal(pid){
+  const p=byId(pid||S.order[0]); if(!p) return;
+  const opts=(cat)=>{
+    const cur=p.blocks[cat];
+    const isCustom=cur&&cur.startsWith('custom:');
+    return `<select id="reg_${cat}" onchange="UI.regChange('${p.id}','${cat}',this.value)">
+      <option value="">（未選）</option>
+      ${BLOCKS[cat].map(b=>`<option value="${b.k}" ${cur===b.k?'selected':''}>${b.t}</option>`).join('')}
+      <option value="__custom" ${isCustom?'selected':''}>自訂…</option>
+    </select>${isCustom?`<input type="text" style="margin-top:3px;width:100%" value="${esc(cur.slice(7))}" onchange="UI.regCustom('${p.id}','${cat}',this.value)">`:''}`;
+  };
+  openModal(`<h2>📝 荷官室 — 個人規則登記</h2>
+    <div style="margin-bottom:8px;">玩家：<select onchange="UI.openRegFor(this.value)">
+      ${S.order.map(id=>{const q=byId(id);return `<option value="${q.id}" ${q.id===p.id?'selected':''}>${q.seat}｜${q.name}</option>`;}).join('')}
+    </select> <span class="note">一次只顯示一位，避免其他玩家看到</span></div>
+    ${CATS.map(([cat,label,cls])=>`<div class="blockrow"><span class="lbl ${cls}">${label}</span><span>${opts(cat)}</span></div>`).join('')}
+    <div class="sentence" id="regSentence"></div>
+    <p class="note">限制：每個顏色都須使用且只能一次；黃（條件發生對象）與紫（對象）不得相同主詞；合文法邏輯。字數：<b id="regCount"></b></p>
+    <div class="foot"><button class="primary" onclick="closeModal()">完成</button></div>`);
+  updateRegPreview(p.id);
+}
+function updateRegPreview(pid){
+  const p=byId(pid);
+  const el=document.getElementById('regSentence'); if(!el) return;
+  el.innerHTML = CATS.map(([cat,,cls])=>{
+    const t=blockText(cat,p.blocks[cat]);
+    return t?`<span class="chip ${cls}">${esc(t)}</span>`:'';
+  }).join('')||'<i class="note">（尚未選字塊）</i>';
+  const warn=[];
+  if(p.blocks.subj&&p.blocks.target){
+    const st=blockText('subj',p.blocks.subj), tt=blockText('target',p.blocks.target);
+    if(st.includes('第一名')&&tt.includes('第一名')||st.includes('最後一名')&&tt.includes('最後一名')||st.includes('同一格')&&tt.includes('同一格'))
+      warn.push('⚠ 黃與紫似乎是相同主詞');
+  }
+  document.getElementById('regCount').innerHTML = ruleCharCount(p)+(warn.length?'　<span style="color:var(--danger)">'+warn.join(' ')+'</span>':'');
+}
+
+/* ---------- 團體規則 modal（清單＋新增/修改，隨時可用） ---------- */
+function groupModal(editIdx){
+  const editing = editIdx!=null ? S.groupRules[editIdx] : null;
+  const cur = editing || {y:null,b:null,g:null};
+  const col=(c,label,cls)=>`<div><div class="lbl ${cls}" style="margin:6px 0">${label}</div><div class="grpchips">
+    ${GRP[c].map(it=>`<label style="display:flex;gap:6px;align-items:center;">
+      <input type="radio" name="grp_${c}" value="${it.k}" ${cur[c]===it.k?'checked':''}> <span>${it.t}</span></label>`).join('')}
+  </div></div>`;
+  const list = S.groupRules.length
+    ? S.groupRules.map((r,i)=>`<div style="display:flex;gap:8px;align-items:center;margin:4px 0;">
+        <span style="flex:1">👑 ${i+1}.「${esc(grpText(r))}」</span>
+        <button class="mini" onclick="UI.openGroupRule(${i})">修改</button>
+        <button class="mini bad" onclick="UI.delGroup(${i})">刪除</button></div>`).join('')
+    : '<i class="note">（目前沒有團體規則）</i>';
+  openModal(`<h2>👑 團體規則（可多條、隨時新增修改）</h2>
+    <div style="background:#f4f8fb;border-radius:8px;padding:8px;margin-bottom:10px;">${list}</div>
+    <p class="note">${editing?`正在修改第 ${editIdx+1} 條：`:'新增規則：'}三種顏色各選一句，組成完整句子。</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+      ${col('y','黃：適用對象/時機','y')}${col('b','藍：條件/代價','b')}${col('g','綠：效果','g')}
+    </div>
+    <div class="foot">
+      <button class="primary" onclick="UI.saveGroup(${editing?editIdx:'null'})">${editing?'儲存修改':'登記為新規則'}</button>
+      <button onclick="closeModal()">關閉</button>
+    </div>`);
+}
+
+/* ---------- 設定 / 參考 ---------- */
+function settingsModal(){
+  openModal(`<h2>⚙ 設定</h2>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <label>局名（存檔鍵）：<input type="text" id="setName" value="${esc(S.gameName)}"></label>
+      <label>行進方向：
+        <select id="setDir">
+          <option value="cw" ${S.dir==='cw'?'selected':''}>順時針（始/終 → 沿下排往右）</option>
+          <option value="ccw" ${S.dir==='ccw'?'selected':''}>逆時針（始/終 → 沿左排往上）</option>
+        </select>
+        <span class="note">PDF 盤面無箭頭，請照實體盤選；切換僅改變格子對應，玩家已走步數不變。</span>
+      </label>
+      <button onclick="UI.restoreBak()">⏪ 還原上一動備份（自動存檔的前一份）</button>
+      <button class="bad" onclick="UI.resetAll()">🗑 全部重設（新局）</button>
+    </div>
+    <div class="foot"><button class="primary" onclick="UI.saveSettings()">儲存</button><button onclick="closeModal()">取消</button></div>`);
+}
+function refModal(){
+  openModal(`<h2>📖 規則參考</h2>
+    <p><b>骰子</b>：普通骰＝1、2、2、3、監獄、逃脫；特殊骰＝1、2、2、3、3、3（觸發特定規則才可用）。</p>
+    <p><b>監獄</b>：擲出監獄必須入獄並標記目前格子。只有輪到自己時擲出「逃脫」或使用逃脫券才可逃脫；成功逃脫後可立即擲骰（不能先擲骰失敗再用券）。</p>
+    <p><b>皇宮</b>：擲骰直達者三選一 — 獲得逃脫券／再擲一次／登記或修改團體規則；非擲骰移動到皇宮無獎勵。逃脫券可轉讓。</p>
+    <p><b>高岡樹下</b>：擲骰直達者二選一 — 留下（+1 逃脫券）或離開（後退 1 格）。</p>
+    <p><b>遊戲順序</b>：個人規則字數少者先；同字數猜拳。</p>
+    <table class="reftable"><tr><th>名次</th><th>皮斯／團隊</th><th>名次</th><th>皮斯／團隊</th></tr>
+      <tr><td>第一名</td><td>+3／+30</td><td>第十二名</td><td>+0／−10</td></tr>
+      <tr><td>第二名</td><td>+2／+20</td><td>第十三名</td><td>+0／−20</td></tr>
+      <tr><td>第三名</td><td>+1／+10</td><td>第十四名</td><td>+0／−30</td></tr></table>
+    <p class="note">時限內無人抵達終點 → 只計最後三名的團隊扣分。（獎懲由荷官自行套用，本工具只排名次）</p>
+    <p><b>感染值</b>（本工具記錄數值與團隊加總；兌換效果由荷官人工執行，場外影響直接用 ± 調整）：</p>
+    <ul style="margin-left:20px;font-size:14px;">
+      <li>感染值 +3，可獲得一張逃脫券</li>
+      <li>感染值 +3，可投擲特殊骰</li>
+      <li>感染值 +3，可修改一個團體規則子句</li>
+      <li>感染值 +3，可使任一玩家後退一格</li>
+      <li>交出逃脫券，感染值可 −1</li>
+      <li>放棄前進一次，感染值可 −1</li>
+    </ul>
+    <p class="note">⚠ 本工具<b>不含任何終止條件</b> — 全員過終點後仍可繼續操作。</p>
+    <div class="foot"><button class="primary" onclick="closeModal()">關閉</button></div>`);
+}
+
+/* ---------- 範例資料（2樓 個人規則登記表 sheet 101） ---------- */
+const DEMO = {
+  frags: {
+    A:{subj:'same'}, B:{event:'useTicket'}, C:{subj:'last',cost:'peace1'}, D:{target:'last'},
+    E:{effect:'gainTicket'}, F:{effect:'specialDie'}, G:{target:'first'}, H:{target:'last'},
+    I:{cost:'infect1'}, J:{event:'diceJail'}, K:{subj:'last'}, L:{subj:'palace'},
+    M:{event:'moveByPersonal'}, N:{cost:'peace1'}
+  },
+  order: ['E','G','B','D','H','J','K','L','M','A','F','I','N','C']
+};
+
+/* ---------- UI handler 物件 ---------- */
+const UI = {
+  roll:f=>inputRoll(f),
+  next:()=>nextTurn(),
+  useTicket:()=>useTicketEscape(),
+  applySugg:id=>applyPersonal(id),
+  dropSugg:id=>dropSugg(id),
+  applyGroupSugg:id=>{ const sg=SUGGS.find(x=>x.id===id); if(!sg)return; snapshot(); log(`👑 團體規則生效：「${grpText(sg.rule)}」`); openGroupEffect(byId(sg.actorId), sg.rule); dropSugg(id); },
+  applyGroupJail:(id,acc)=>applyGroupJail(id,acc),
+  invokeGroup:i=>invokeGroupOptional(i),
+  setCurrent:pid=>{ const i=S.order.indexOf(pid); if(i<0) return; snapshot();
+    S.turnPtr=i; S.pendingRolls=0; log(`🎯 荷官指定：現在輪到 ${byId(pid).name}`); save(); render(); },
+  allBack2:()=>{ snapshot(); log('⏪ 特殊事件：所有人倒退兩格');
+    for(const p of activePlayers()) moveBy(p,-2,'manual');
+    save(); render(); },
+  grpPush:pid=>{ const p=byId(pid); closeModal(); snapshot(); moveBy(p,-1,'group'); save(); render(); },
+
+  addPlayer:()=>{ snapshot(); const seat=String.fromCharCode(65+S.players.length%26)+(S.players.length>=26?Math.floor(S.players.length/26):'');
+    const p=newPlayer(seat); S.players.push(p); S.order.push(p.id); save(); render(); },
+  removePlayer:pid=>{ snapshot(); S.players=S.players.filter(p=>p.id!==pid); S.order=S.order.filter(i=>i!==pid); S.finishSeq=S.finishSeq.filter(i=>i!==pid); save(); render(); },
+  rename:(pid,v)=>{ byId(pid).name=v.trim()||byId(pid).seat; save(); render(); },
+  setTeam:(pid,v)=>{ byId(pid).team=v; save(); render(); },
+  nudge:(pid,field,d)=>{ snapshot(); const p=byId(pid);
+    if(field==='progress'){ moveBy(p,d,'manual'); }
+    else { p[field]+=d; if(field!=='peace') p[field]=Math.max(0,p[field]); } // 皮斯可為負（欠賬）
+    save(); render(); },
+  toggleJail:pid=>{ snapshot(); const p=byId(pid);
+    if(p.jailed){ p.jailed=false; log(`🔓 ${p.name} 被荷官釋放出獄`); }
+    else { jailPlayer(p,false); }
+    save(); render(); },
+  togglePause:pid=>{ snapshot(); const p=byId(pid); p.skipNext=!p.skipNext; log(`${p.name} ${p.skipNext?'被標記暫停一回合':'取消暫停'}`); save(); render(); },
+  toggleSpecial:pid=>{ snapshot(); const p=byId(pid); p.specialNext=!p.specialNext; log(`${p.name} ${p.specialNext?'下次投擲使用特殊骰':'取消特殊骰'}`); save(); render(); },
+  openEdit:pid=>{ const p=byId(pid);
+    const num=(id,v)=>`<input type="number" id="${id}" value="${v}" style="width:70px;padding:4px;border:1px solid #ccc;border-radius:6px;">`;
+    const chk=(id,v,label)=>`<label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" id="${id}" ${v?'checked':''}>${label}</label>`;
+    openModal(`<h2>✏️ 編輯 ${esc(p.seat)}｜${esc(p.name)}（臨時狀況直接改，不用復原）</h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <label>名字 <input type="text" id="ed_name" value="${esc(p.name)}" style="width:100%"></label>
+        <label>隊伍 <select id="ed_team" style="width:100%">${['','橡樹','楊樹','栗樹'].map(t=>`<option value="${t}" ${p.team===t?'selected':''}>${t||'—'}</option>`).join('')}</select></label>
+        <label>位置（已走步數） ${num('ed_progress',p.progress)}</label>
+        <label>🎫 逃脫券 ${num('ed_tickets',p.tickets)}</label>
+        <label>🪙 皮斯 ${num('ed_peace',p.peace)}</label>
+        <label>🦠 感染值 ${num('ed_infect',p.infect)}</label>
+        ${chk('ed_jailed',p.jailed,'⛓ 在監獄中（標記格＝位置）')}
+        ${chk('ed_skip',p.skipNext,'⏸ 暫停一回合')}
+        ${chk('ed_special',p.specialNext,'🎲 下次用特殊骰')}
+        ${chk('ed_finished',p.finished,'🏁 已完賽')}
+      </div>
+      <div style="margin-top:10px;"><button class="mini" onclick="UI.openRegFor('${p.id}')">📝 編輯這位玩家的個人規則</button></div>
+      <div class="foot"><button class="primary" onclick="UI.saveEdit('${p.id}')">儲存</button><button onclick="closeModal()">取消</button></div>`); },
+  saveEdit:pid=>{ const p=byId(pid); snapshot();
+    const iv=id=>{ const n=parseInt(document.getElementById(id).value,10); return isNaN(n)?0:n; };
+    p.name=document.getElementById('ed_name').value.trim()||p.seat;
+    p.team=document.getElementById('ed_team').value;
+    p.progress=Math.max(0,iv('ed_progress'));
+    p.tickets=Math.max(0,iv('ed_tickets'));
+    p.peace=iv('ed_peace');
+    p.infect=iv('ed_infect');
+    p.jailed=document.getElementById('ed_jailed').checked;
+    p.skipNext=document.getElementById('ed_skip').checked;
+    p.specialNext=document.getElementById('ed_special').checked;
+    const fin=document.getElementById('ed_finished').checked;
+    if(fin&&!p.finished){ p.finished=true; if(!S.finishSeq.includes(p.id)) S.finishSeq.push(p.id); }
+    if(!fin&&p.finished){ p.finished=false; S.finishSeq=S.finishSeq.filter(i=>i!==p.id); p.progress=Math.min(p.progress,TRACK_LEN-1); }
+    log(`✏️ 荷官編輯 ${p.name}：位置${p.progress}、逃脫券${p.tickets}、皮斯${p.peace}、感染值${p.infect}${p.jailed?'、監獄中':''}${p.finished?'、已完賽':''}`);
+    closeModal(); save(); render(); },
+  moveOrder:(pid,d)=>{ snapshot(); const i=S.order.indexOf(pid); const j=i+d; if(j<0||j>=S.order.length)return;
+    [S.order[i],S.order[j]]=[S.order[j],S.order[i]]; save(); render(); },
+  sortByCount:()=>{ snapshot();
+    const seatIdx=id=>S.players.findIndex(p=>p.id===id); // 同字數依座位列順序，與 Excel 表一致
+    S.order.sort((a,b)=>ruleCharCount(byId(a))-ruleCharCount(byId(b)) || seatIdx(a)-seatIdx(b));
+    log('依字數重排擲骰順序（同字數依座位序，與 Excel 一致；要猜拳可再手動 ▲▼）'); save(); render(); },
+
+  loadDemo:()=>{ snapshot();
+    S.players=[]; S.order=[];
+    for(const seat of 'ABCDEFGHIJKLMN'){ const p=newPlayer(seat); Object.assign(p.blocks, DEMO.frags[seat]||{}); S.players.push(p); }
+    S.order = DEMO.order.map(seat=>S.players.find(p=>p.seat===seat).id);
+    log('已帶入 2樓101 範例資料（14 位玩家、片段規則、表定順序）');
+    save(); render(); },
+
+  openReg:()=>regModal(S.order[0]),
+  openRegFor:pid=>regModal(pid),
+  regChange:(pid,cat,v)=>{ const p=byId(pid);
+    if(v==='__custom'){ p.blocks[cat]='custom:'; regModal(pid); return; }
+    p.blocks[cat]=v||null; save(); updateRegPreview(pid); renderSetup(); renderPlayers(); },
+  regCustom:(pid,cat,v)=>{ byId(pid).blocks[cat]='custom:'+v.trim(); save(); updateRegPreview(pid); renderSetup(); renderPlayers(); },
+
+  startGame:()=>{ if(!S.players.length){ alert('請先新增玩家'); return; }
+    snapshot(); S.phase='play'; S.turnPtr=0;
+    while(byId(S.order[S.turnPtr]).finished) S.turnPtr=(S.turnPtr+1)%S.order.length;
+    log(`🎮 遊戲開始！共 ${S.players.length} 位玩家。▶ 輪到 ${curPlayer().name}`);
+    save(); render(); },
+
+  openGroupRule:idx=>groupModal(typeof idx==='number'?idx:null),
+  saveGroup:editIdx=>{ const get=c=>{ const el=document.querySelector(`input[name=grp_${c}]:checked`); return el?el.value:null; };
+    const y=get('y'),b=get('b'),g=get('g');
+    if(!y||!b||!g){ alert('三種顏色各需選一句'); return; }
+    snapshot();
+    if(editIdx!=null){ S.groupRules[editIdx]={y,b,g}; log(`👑 團體規則 ${editIdx+1} 修改為：「${grpText({y,b,g})}」`); }
+    else { S.groupRules.push({y,b,g}); log(`👑 新增團體規則：「${grpText({y,b,g})}」`); }
+    closeModal(); save(); render(); },
+  delGroup:idx=>{ snapshot(); const r=S.groupRules.splice(idx,1)[0];
+    log(`🗑 刪除團體規則：「${grpText(r)}」`); groupModal(); save(); render(); },
+
+  palace:(pid,choice)=>{ const p=byId(pid); closeModal(); snapshot();
+    if(choice==='ticket'){ p.tickets++; log(`👑 ${p.name} 皇宮獎勵：獲得逃脫券（共 ${p.tickets}）`); }
+    else if(choice==='reroll'){ S.pendingRolls++; log(`👑 ${p.name} 皇宮獎勵：再擲一次骰子`); }
+    else if(choice==='group'){ log(`👑 ${p.name} 皇宮獎勵：登記／修改團體規則`); groupModal(); }
+    save(); render(); },
+  tree:(pid,choice)=>{ const p=byId(pid); closeModal(); snapshot();
+    if(choice==='stay'){ p.tickets++; p.infect+=2; log(`🌲 ${p.name} 留在高岡樹下：獲得逃脫券（共 ${p.tickets}）、感染值+2（現為 ${p.infect}）`); }
+    else { log(`🌲 ${p.name} 離開高岡樹下`); moveBy(p,-1,'manual'); }
+    save(); render(); },
+
+  openTransfer:()=>{ openModal(`<h2>🎫 逃脫券轉讓</h2>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      由 <select id="tfFrom">${S.players.map(p=>`<option value="${p.id}">${p.seat}｜${p.name}（${p.tickets}張）</option>`).join('')}</select>
+      轉給 <select id="tfTo">${S.players.map(p=>`<option value="${p.id}">${p.seat}｜${p.name}</option>`).join('')}</select>
+      </div>
+      <div class="foot"><button class="primary" onclick="UI.doTransfer()">轉讓 1 張</button><button onclick="closeModal()">取消</button></div>`); },
+  doTransfer:()=>{ const f=byId($('#tfFrom').value), t=byId($('#tfTo').value);
+    if(f.id===t.id||f.tickets<1){ alert('無法轉讓'); return; }
+    snapshot(); f.tickets--; t.tickets++; log(`🎫 ${f.name} 轉讓一張逃脫券給 ${t.name}`); closeModal(); save(); render(); },
+
+  openPaste:()=>{ openModal(`<h2>📋 貼上 Excel 匯入個人規則</h2>
+      <p class="note">從 Excel 複製「名字＋五個字塊」的欄位範圍後貼上（含表頭沒關係，會自動跳過）。
+      以座位或名字比對既有玩家（重貼＝更新）；比對不到會新增玩家。
+      每一列會<b>整列覆蓋</b>該玩家的五個字塊，空白格＝清空該字塊；全空的列自動略過。</p>
+      <textarea id="pasteBox" style="width:100%;height:150px;font-size:13px;font-family:inherit;" placeholder="例：A	當跟我在同一格的玩家	擲到2	且我後退一格，則	第一名的玩家	獲得一張逃脫券"></textarea>
+      <div style="margin:8px 0"><button class="primary" onclick="UI.pastePreview()">解析預覽</button></div>
+      <div id="pastePrev" style="overflow-x:auto;"></div>
+      <div class="foot"><button class="good" id="pasteApplyBtn" style="display:none" onclick="UI.pasteApply()">✅ 套用匯入</button><button onclick="closeModal()">取消</button></div>`); },
+  pastePreview:()=>{
+    const rows=parsePaste($('#pasteBox').value);
+    const btn=$('#pasteApplyBtn');
+    if(!rows.length){ $('#pastePrev').innerHTML='<i class="note">解析不到資料列（請確認由 Excel 複製、含名字欄）</i>'; btn.style.display='none'; return; }
+    const hasOrd=rows.some(r=>r.ord!=null);
+    $('#pastePrev').innerHTML='<table class="reftable"><tr><th>玩家</th>'+(hasOrd?'<th>擲骰子順序</th>':'')+'<th>條件發生對象</th><th>條件發生事件</th><th>代價</th><th>對象</th><th>效果</th></tr>'+
+      rows.map(r=>{
+        const p=findPasteTarget(r.head);
+        const tds=CATS.map(([cat])=>{ const k=r.mapped[cat];
+          if(!k) return '<td style="color:#999">—（清空）</td>';
+          if(k.startsWith('custom:')) return `<td>✎ ${esc(k.slice(7))} <span class="note">自訂</span></td>`;
+          return `<td>✓ ${esc(blockText(cat,k))}</td>`; }).join('');
+        return `<tr><td><b>${esc(r.head)}</b><br>${p?`→ 更新 ${esc(p.seat)}｜${esc(p.name)}`:'→ 新增玩家'}</td>${hasOrd?`<td><b>${r.ord!=null?r.ord:'—'}</b></td>`:''}${tds}</tr>`;
+      }).join('')+'</table>'+(hasOrd?'<p class="note">✅ 偵測到「擲骰子順序」欄：套用後會直接照 Excel 的順序重排。</p>':'<p class="note">未偵測到「擲骰子順序」欄：順序不變（可整列連順序欄一起複製，或匯入後按「依字數排順序」）。</p>');
+    btn.style.display='';
+  },
+  pasteApply:()=>{
+    const rows=parsePaste($('#pasteBox').value); if(!rows.length) return;
+    snapshot();
+    let upd=0, add=0; const ordered=[];
+    for(const r of rows){
+      let p=findPasteTarget(r.head);
+      if(!p){ const seat=r.head.trim().length<=2?r.head.trim():String.fromCharCode(65+S.players.length%26);
+        p=newPlayer(seat); p.name=r.head.trim()||seat; S.players.push(p); S.order.push(p.id); add++; }
+      else upd++;
+      for(const [cat] of CATS) p.blocks[cat]=r.mapped[cat];
+      if(r.ord!=null) ordered.push([r.ord, p.id]);
+    }
+    if(ordered.length){ // 依 Excel 擲骰子順序重排；沒在貼上範圍內的玩家依原相對順序接在後面
+      ordered.sort((a,b)=>a[0]-b[0]);
+      const ids=ordered.map(x=>x[1]);
+      S.order = ids.concat(S.order.filter(id=>!ids.includes(id)));
+      log(`📋 擲骰子順序已依 Excel 套用（${ordered.length} 位）`);
+    }
+    log(`📋 貼上匯入完成：更新 ${upd} 位、新增 ${add} 位玩家的規則字塊`);
+    closeModal(); save(); render();
+  },
+  restoreBak:()=>{ let bak=null;
+    try{ bak=JSON.parse(localStorage.getItem('zuicheng_bak__'+S.gameName)); }catch(e){}
+    if(!bak||!bak.players){ alert('找不到備份'); return; }
+    if(!confirm(`還原到上一動備份（${bak.savedAt?new Date(bak.savedAt).toLocaleTimeString('zh-TW',{hour12:false}):'時間不明'}）？`)) return;
+    snapshot(); S=normalizeState(bak); SUGGS=[]; log('⏪ 已還原上一動備份'); closeModal(); save(); render(); },
+  openSettings:()=>settingsModal(),
+  saveSettings:()=>{ snapshot(); const old=S.gameName;
+    S.gameName=$('#setName').value.trim()||old; S.dir=$('#setDir').value;
+    if(old!==S.gameName){ try{localStorage.removeItem('zuicheng_'+old);}catch(e){} }
+    log(`設定更新：局名 ${S.gameName}、方向 ${S.dir==='cw'?'順時針':'逆時針'}`);
+    closeModal(); save(); render(); },
+  resetAll:()=>{ if(!confirm('確定整局重設？（會清空目前所有進度）'))return;
+    try{localStorage.removeItem('zuicheng_'+S.gameName);}catch(e){}
+    S=freshState(); for(const seat of 'ABCDEFGHIJKLMN'){ const p=newPlayer(seat); S.players.push(p); S.order.push(p.id); }
+    closeModal(); save(); render(); },
+  openRef:()=>refModal(),
+
+  undo:()=>{ if(!UNDO.length){ alert('沒有可復原的步驟'); return; }
+    S=JSON.parse(UNDO.pop()); SUGGS=[]; closeModal(); save(); render(); },
+
+  exportJSON:()=>{ const a=document.createElement('a');
+    a.href='data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify(S,null,1));
+    a.download=`罪城法則_${S.gameName}_${new Date().toISOString().slice(0,16).replace(/[:T]/g,'-')}.json`; a.click(); },
+  importJSON:inp=>{ const f=inp.files[0]; if(!f)return; const r=new FileReader();
+    r.onload=()=>{ try{ snapshot(); S=normalizeState(JSON.parse(r.result)); SUGGS=[]; save(); render(); log('已匯入存檔'); }catch(e){ alert('檔案格式錯誤'); } };
+    r.readAsText(f); inp.value=''; }
+};
+
+/* ---------- 啟動 ---------- */
+(function boot(){
+  let loaded=null;
+  try{ // 取最新一份自動存檔（依 savedAt）
+    for(const k of Object.keys(localStorage)){
+      if(!k.startsWith('zuicheng_')||k.startsWith('zuicheng_bak__')) continue;
+      const s=JSON.parse(localStorage.getItem(k));
+      if(!loaded||(s.savedAt||0)>(loaded.savedAt||0)) loaded=s;
+    }
+  }catch(e){}
+  if(loaded && loaded.players && loaded.players.length && confirm(`偵測到自動存檔「${loaded.gameName}」（${loaded.savedAt?new Date(loaded.savedAt).toLocaleString('zh-TW',{hour12:false}):'時間不明'}），要繼續上次進度嗎？\n（取消＝開新局）`)){
+    S=normalizeState(loaded);
+  }else{
+    S=freshState();
+    for(const seat of 'ABCDEFGHIJKLMN'){ const p=newPlayer(seat); S.players.push(p); S.order.push(p.id); }
+    log('新局建立：預設 14 位玩家（A–N），請登記個人規則後開始');
+  }
+  render();
+})();
+</script>
+</body>
+</html>
