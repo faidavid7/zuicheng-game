@@ -195,7 +195,6 @@ details summary{cursor:pointer; font-weight:800;}
       <h2>1️⃣ 玩家與個人規則登記（荷官室）</h2>
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
         <button onclick="UI.addPlayer()">＋ 新增玩家</button>
-        <button onclick="UI.loadDemo()">帶入 2樓101 範例資料</button>
         <button onclick="UI.openReg()">📝 登記/修改個人規則</button>
         <button onclick="UI.sortByCount()">依字數排順序</button>
         <button class="primary" onclick="UI.startGame()">▶ 開始遊戲</button>
@@ -1012,17 +1011,6 @@ function refModal(){
     <div class="foot"><button class="primary" onclick="closeModal()">關閉</button></div>`);
 }
 
-/* ---------- 範例資料（2樓 個人規則登記表 sheet 101） ---------- */
-const DEMO = {
-  frags: {
-    A:{subj:'same'}, B:{event:'useTicket'}, C:{subj:'last',cost:'peace1'}, D:{target:'last'},
-    E:{effect:'gainTicket'}, F:{effect:'specialDie'}, G:{target:'first'}, H:{target:'last'},
-    I:{cost:'infect1'}, J:{event:'diceJail'}, K:{subj:'last'}, L:{subj:'palace'},
-    M:{event:'moveByPersonal'}, N:{cost:'peace1'}
-  },
-  order: ['E','G','B','D','H','J','K','L','M','A','F','I','N','C']
-};
-
 /* ---------- UI handler 物件 ---------- */
 const UI = {
   roll:f=>inputRoll(f),
@@ -1097,13 +1085,6 @@ const UI = {
     const seatIdx=id=>S.players.findIndex(p=>p.id===id); // 同字數依座位列順序，與 Excel 表一致
     S.order.sort((a,b)=>ruleCharCount(byId(a))-ruleCharCount(byId(b)) || seatIdx(a)-seatIdx(b));
     log('依字數重排擲骰順序（同字數依座位序，與 Excel 一致；要猜拳可再手動 ▲▼）'); save(); render(); },
-
-  loadDemo:()=>{ snapshot();
-    S.players=[]; S.order=[];
-    for(const seat of 'ABCDEFGHIJKLMN'){ const p=newPlayer(seat); Object.assign(p.blocks, DEMO.frags[seat]||{}); S.players.push(p); }
-    S.order = DEMO.order.map(seat=>S.players.find(p=>p.seat===seat).id);
-    log('已帶入 2樓101 範例資料（14 位玩家、片段規則、表定順序）');
-    save(); render(); },
 
   openReg:()=>regModal(S.order[0]),
   openRegFor:pid=>regModal(pid),
