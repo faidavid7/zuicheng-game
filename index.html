@@ -152,6 +152,17 @@ details summary{cursor:pointer; font-weight:800;}
 <div class="topbar">
   <h1>罪城法則</h1>
   <input type="text" id="gameNameInp" title="存檔名稱（局名）：直接改，例如 1樓、2樓" onchange="UI.renameGame(this.value)">
+  <button onclick="UI.openSaves()">🗂 存檔</button>
+  <span style="display:flex;align-items:center;gap:4px;">
+    <select id="timerSel" onchange="UI.timerPreset(this.value)" title="計時預設">
+      <option value="600">10分</option><option value="300">5分</option><option value="180">3分</option>
+      <option value="60">1分</option><option value="30">30秒</option><option value="custom">自訂…</option>
+    </select>
+    <b id="timerDisp" onclick="UI.timerToggle()" title="點擊也可開始/暫停"
+       style="font-size:21px;color:#ffd84d;min-width:64px;text-align:center;cursor:pointer;font-variant-numeric:tabular-nums;">10:00</b>
+    <button id="timerBtn" onclick="UI.timerToggle()">開始</button>
+    <button onclick="UI.timerReset()">重置</button>
+  </span>
   <span id="phaseTag" class="tag" style="background:var(--orange)">設定中</span>
   <span id="saveInd" style="color:#9fd89f;font-size:12.5px;"></span>
   <span class="spacer"></span>
@@ -415,7 +426,24 @@ function normalizeState(s){ // 舊存檔相容
   return s;
 }
 const byId = id => S.players.find(p=>p.id===id);
-const pname = p => p.name===p.seat ? p.seat : `${p.seat}｜${p.name}`;   // 未改名只顯示座位
+const pname = p => p.name;   // 介面只顯示名字（座位僅供 Excel 貼上比對）
+
+/* ---------- 計時器（不入存檔，純課堂用） ---------- */
+const T={dur:600, left:600, run:false, iv:null};
+function timerDisp(){ const el=document.getElementById('timerDisp'); if(!el) return;
+  el.textContent = Math.floor(T.left/60)+':'+String(T.left%60).padStart(2,'0');
+  el.style.color = T.left===0 ? '#ff6b6b' : (T.run ? '#9fd89f' : '#ffd84d'); }
+function timerTick(){ if(!T.run) return; T.left--;
+  if(T.left<=0){ T.left=0; T.run=false; clearInterval(T.iv);
+    document.getElementById('timerBtn').textContent='開始';
+    try{ const ac=new (window.AudioContext||window.webkitAudioContext)();
+      [0,0.35,0.7].forEach(t=>{ const o=ac.createOscillator(),g=ac.createGain();
+        o.frequency.value=880; o.connect(g); g.connect(ac.destination);
+        g.gain.setValueAtTime(0.3,ac.currentTime+t);
+        g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+t+0.3);
+        o.start(ac.currentTime+t); o.stop(ac.currentTime+t+0.32); }); }catch(e){}
+    log('⏱ 時間到！'); renderLog(); }
+  timerDisp(); }
 function activePlayers(){ return S.players.filter(p=>!p.finished); }
 function curPlayer(){ if(S.phase!=='play') return null; const id=S.order[S.turnPtr]; return byId(id)||null; }
 
@@ -430,13 +458,19 @@ function samePos(a,b){ return !a.jailed&&!b.jailed&&!a.finished&&!b.finished&&(a
 /* ---------- 存檔 / 復原 ---------- */
 const UNDO=[];
 function snapshot(){ UNDO.push(JSON.stringify(S)); if(UNDO.length>150) UNDO.shift(); }
-function save(){ // 每一步操作即時自動存檔；前一動另存備份，避免紀錄消失
+function save(){ // 每一步即時自動存檔＋前一動備份＋每日歷史快照（每局保留最近20天）
   try{
     S.savedAt=Date.now();
     const key='zuicheng_'+S.gameName;
     const prev=localStorage.getItem(key);
     if(prev) localStorage.setItem('zuicheng_bak__'+S.gameName, prev);
-    localStorage.setItem(key, JSON.stringify(S));
+    const json=JSON.stringify(S);
+    localStorage.setItem(key, json);
+    const d=new Date(S.savedAt);
+    const day=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    localStorage.setItem('zuicheng_hist__'+S.gameName+'__'+day, json);
+    const hk=Object.keys(localStorage).filter(k=>k.startsWith('zuicheng_hist__'+S.gameName+'__')).sort();
+    while(hk.length>20) localStorage.removeItem(hk.shift());
     const el=document.getElementById('saveInd');
     if(el) el.textContent='💾 已自動存檔 '+new Date(S.savedAt).toLocaleTimeString('zh-TW',{hour12:false});
   }catch(e){
@@ -486,7 +520,7 @@ function fireEvent(evKey, actor, ctx={}){
 }
 
 /* ---------- 建議卡 ---------- */
-let SUGGS=[]; let SUGGID=0;
+let SUGGS=[]; let SUGGID=0; let SAVELIST=[]; let HISTLIST=[];
 function suggestPersonal(owner, actor, evKey){
   const rep=S.firedThisTurn[owner.id]||0;
   SUGGS.push({id:++SUGGID, kind:'personal', ownerId:owner.id, actorId:actor.id, evKey, rep});
@@ -743,22 +777,21 @@ function renderBoard(){
     return `<div class="cell ${cl.type==='start'?'start':''}" style="background:${COLORS[cl.color]}">
       <span class="idx">${stepNo}</span>
       <span class="icon ${cl.type==='start'?'startlabel':''}">${icon}</span>
-      <div class="pieces ${here.length>8?'dense':''}">${here.map(p=>`<span class="piece ${cur&&cur.id===p.id?'cur':''}" title="${esc(p.name)}">${esc(p.seat)}</span>`).join('')}</div>
+      <div class="pieces ${here.length>8?'dense':''}">${here.map(p=>`<span class="piece ${cur&&cur.id===p.id?'cur':''}" title="${esc(p.name)}">${esc(p.name.charAt(0))}</span>`).join('')}</div>
     </div>`;
   }).join('');
   const cur=curPlayer();
-  $('#jailPieces').innerHTML = S.players.filter(p=>p.jailed).map(p=>`<span class="piece ${cur&&cur.id===p.id?'cur':''}" title="標記格 ${p.progress%TRACK_LEN}">${esc(p.seat)}</span>`).join('')||'<span class="note" style="color:#eee">（無人）</span>';
+  $('#jailPieces').innerHTML = S.players.filter(p=>p.jailed).map(p=>`<span class="piece ${cur&&cur.id===p.id?'cur':''}" title="${esc(p.name)}｜標記格 ${p.progress%TRACK_LEN}">${esc(p.name.charAt(0))}</span>`).join('')||'<span class="note" style="color:#eee">（無人）</span>';
   $('#finishList').innerHTML = S.finishSeq.map(id=>`<li>${esc(byId(id).name)}</li>`).join('');
 }
 function renderSetup(){
   if(S.phase!=='setup') { $('#setupTable').innerHTML=''; return; }
-  $('#setupTable').innerHTML = `<tr><th>順序</th><th>座位</th><th>名字</th><th>隊伍</th><th>規則字數</th><th>已登記</th><th></th></tr>`+
+  $('#setupTable').innerHTML = `<tr><th>順序</th><th>名字</th><th>隊伍</th><th>規則字數</th><th>已登記</th><th></th></tr>`+
     S.order.map((id,i)=>{
       const p=byId(id);
       const reg=CATS.every(([c])=>p.blocks[c]);
       return `<tr>
         <td><b>${i+1}</b> <button class="mini" onclick="UI.moveOrder('${p.id}',-1)">▲</button><button class="mini" onclick="UI.moveOrder('${p.id}',1)">▼</button></td>
-        <td><b>${esc(p.seat)}</b></td>
         <td><input type="text" value="${esc(p.name)}" style="width:90px" onchange="UI.rename('${p.id}',this.value)"></td>
         <td><select onchange="UI.setTeam('${p.id}',this.value)">
           ${['','橡樹','楊樹','栗樹'].map(t=>`<option value="${t}" ${p.team===t?'selected':''}>${t||'—'}</option>`).join('')}
@@ -853,7 +886,8 @@ function renderSuggs(){
       return `<div class="sugg">
         <div class="src">⚡ 個人規則觸發偵測（${esc(a.name)} 的「${EVENT_NAMES[sg.evKey]||sg.evKey}」）${sg.rep?`<b style="color:var(--danger)">（本回合第 ${sg.rep+1} 次觸發同一規則）</b>`:''}</div>
         <div class="rule">${esc(pname(o))}：「${esc(ruleSentence(o))}」</div>
-        <div class="btns"><button class="good" onclick="UI.applySugg(${sg.id})">✅ 支付代價並執行</button>
+        <div class="btns"><button class="warn" onclick="UI.warnActor('${a.id}')">⚠️ ${esc(a.name)} 警告值+1</button>
+        <button class="good" onclick="UI.applySugg(${sg.id})">✅ 支付代價並執行</button>
         <button onclick="UI.dropSugg(${sg.id})">略過（不生效）</button></div>
       </div>`;
     }
@@ -861,20 +895,23 @@ function renderSuggs(){
       const o=byId(sg.ownerId), a=byId(sg.actorId);
       return `<div class="sugg"><div class="src">⚠ 含自訂字塊，請荷官人工判定（${esc(a.name)} 觸發）</div>
         <div class="rule">${esc(pname(o))}：「${esc(ruleSentence(o))}」</div>
-        <div class="btns"><button onclick="UI.dropSugg(${sg.id})">知道了（人工處理）</button></div></div>`;
+        <div class="btns"><button class="warn" onclick="UI.warnActor('${a.id}')">⚠️ ${esc(a.name)} 警告值+1</button>
+        <button onclick="UI.dropSugg(${sg.id})">知道了（人工處理）</button></div></div>`;
     }
     if(sg.kind==='group'){
       const a=byId(sg.actorId);
       return `<div class="sugg"><div class="src">👑 團體規則觸發（${esc(a.name)} ${esc(sg.why)}）</div>
         <div class="rule">「${esc(grpText(sg.rule))}」</div>
-        <div class="btns"><button class="good" onclick="UI.applyGroupSugg(${sg.id})">✅ 執行後段效果</button>
+        <div class="btns"><button class="warn" onclick="UI.warnActor('${a.id}')">⚠️ ${esc(a.name)} 警告值+1</button>
+        <button class="good" onclick="UI.applyGroupSugg(${sg.id})">✅ 執行後段效果</button>
         <button onclick="UI.dropSugg(${sg.id})">略過</button></div></div>`;
     }
     if(sg.kind==='groupJail'){
       const a=byId(sg.actorId);
       return `<div class="sugg"><div class="src">👑 團體規則（${esc(a.name)} 擲出監獄）</div>
         <div class="rule">「${esc(grpText(sg.rule))}」— 可不用移動到監獄</div>
-        <div class="btns"><button class="good" onclick="UI.applyGroupJail(${sg.id},true)">✅ 豁免＋執行後段效果</button>
+        <div class="btns"><button class="warn" onclick="UI.warnActor('${a.id}')">⚠️ ${esc(a.name)} 警告值+1</button>
+        <button class="good" onclick="UI.applyGroupJail(${sg.id},true)">✅ 豁免＋執行後段效果</button>
         <button class="bad" onclick="UI.applyGroupJail(${sg.id},false)">照常入獄</button></div></div>`;
     }
   }).join('');
@@ -1126,6 +1163,65 @@ const UI = {
     if(f.id===t.id||f.tickets<1){ alert('無法轉讓'); return; }
     snapshot(); f.tickets--; t.tickets++; log(`🎫 ${f.name} 轉讓一張逃脫券給 ${t.name}`); closeModal(); save(); render(); },
 
+  timerPreset:v=>{ if(v==='custom'){ const m=parseFloat(prompt('要計幾分鐘？（可用小數，例如 0.5 = 30秒）')||'');
+      if(m>0) T.dur=Math.round(m*60); document.getElementById('timerSel').value=[600,300,180,60,30].includes(T.dur)?String(T.dur):'custom'; }
+    else T.dur=parseInt(v,10);
+    T.run=false; clearInterval(T.iv); T.left=T.dur;
+    document.getElementById('timerBtn').textContent='開始'; timerDisp(); },
+  timerToggle:()=>{ if(T.run){ T.run=false; clearInterval(T.iv); }
+    else { if(T.left<=0) T.left=T.dur; T.run=true; T.iv=setInterval(timerTick,1000); }
+    document.getElementById('timerBtn').textContent=T.run?'暫停':'開始'; timerDisp(); },
+  timerReset:()=>{ if(!confirm('你確定嗎？（計時將回到 '+Math.floor(T.dur/60)+':'+String(T.dur%60).padStart(2,'0')+'）')) return;
+    T.run=false; clearInterval(T.iv); T.left=T.dur;
+    document.getElementById('timerBtn').textContent='開始'; timerDisp(); },
+
+  openSaves:()=>{ SAVELIST=[]; HISTLIST=[];
+    try{ for(const k of Object.keys(localStorage)){
+      if(!k.startsWith('zuicheng_')) continue;
+      if(k.startsWith('zuicheng_bak__')) continue;
+      try{
+        const s=JSON.parse(localStorage.getItem(k));
+        if(!s||!s.players) continue;
+        if(k.startsWith('zuicheng_hist__')){ const day=k.split('__')[2]||''; HISTLIST.push({s,day,key:k}); }
+        else SAVELIST.push(s);
+      }catch(e){}
+    } }catch(e){}
+    SAVELIST.sort((a,b)=>(b.savedAt||0)-(a.savedAt||0));
+    HISTLIST.sort((a,b)=>(b.s.savedAt||0)-(a.s.savedAt||0));
+    const row=(s,btns,cur)=>`<div style="display:flex;gap:8px;align-items:center;margin:6px 0;padding:8px;border:2px solid ${cur?'var(--blue)':'#ddd'};border-radius:10px;">
+      <div style="flex:1;min-width:0"><b style="font-size:17px">${esc(s.gameName)}</b>${cur?' <span class="tag" style="background:var(--blue)">目前</span>':''}<br>
+      <span class="note">${(s.players||[]).length} 位玩家｜${s.phase==='play'?'遊戲進行中':'設定中'}｜最後存檔 ${s.savedAt?new Date(s.savedAt).toLocaleString('zh-TW',{hour12:false}):'不明'}</span></div>${btns}</div>`;
+    openModal(`<h2>🗂 存檔列表</h2>
+      <h3 style="margin:6px 0">目前的局</h3>`
+      +(SAVELIST.length?SAVELIST.map((s,i)=>row(s,
+        `${s.gameName===S.gameName?'':`<button class="primary" onclick="UI.loadSave(${i})">載入</button>`}
+         <button class="bad" onclick="UI.delSave(${i})">刪除</button>`, s.gameName===S.gameName)).join(''):'<i class="note">（無）</i>')
+      +`<h3 style="margin:12px 0 6px">歷史快照（每日自動、每局保留 20 天）</h3>`
+      +(HISTLIST.length?HISTLIST.map((h,i)=>row({...h.s, gameName:h.s.gameName+'　'+h.day},
+        `<button class="primary" onclick="UI.loadHist(${i})">載入</button>
+         <button class="bad" onclick="UI.delHist(${i})">刪除</button>`, false)).join(''):'<i class="note">（尚無歷史快照）</i>')
+      +`<p class="note">切換／載入前，目前局都會先自動存檔，放心操作。</p>
+      <div class="foot"><button onclick="closeModal()">關閉</button></div>`); },
+  loadSave:i=>{ const s=SAVELIST[i]; if(!s) return;
+    snapshot(); save();                       // 先把目前局存好
+    S=normalizeState(JSON.parse(JSON.stringify(s))); SUGGS=[];
+    log(`🗂 切換到存檔「${S.gameName}」`); closeModal(); save(); render(); },
+  delSave:i=>{ const s=SAVELIST[i]; if(!s) return;
+    if(!confirm(`刪除存檔「${s.gameName}」？（無法復原；其歷史快照保留）`)) return;
+    try{ localStorage.removeItem('zuicheng_'+s.gameName); localStorage.removeItem('zuicheng_bak__'+s.gameName); }catch(e){}
+    log(`🗑 刪除存檔「${s.gameName}」`); UI.openSaves(); },
+  loadHist:i=>{ const h=HISTLIST[i]; if(!h) return;
+    if(!confirm(`載入歷史快照「${h.s.gameName}（${h.day}）」？將取代「${h.s.gameName}」目前的進度`)) return;
+    snapshot(); save();
+    S=normalizeState(JSON.parse(JSON.stringify(h.s))); SUGGS=[];
+    log(`🗂 載入歷史快照「${S.gameName}（${h.day}）」`); closeModal(); save(); render(); },
+  delHist:i=>{ const h=HISTLIST[i]; if(!h) return;
+    if(!confirm(`刪除歷史快照「${h.s.gameName}（${h.day}）」？`)) return;
+    try{ localStorage.removeItem(h.key); }catch(e){}
+    UI.openSaves(); },
+  warnActor:pid=>{ const p=byId(pid); if(!p) return;
+    snapshot(); p.warn++; log(`⚠️ ${p.name} 警告值+1（現為 ${p.warn}）`); save(); render(); },
+
   openPaste:()=>{ openModal(`<h2>📋 貼上 Excel 匯入個人規則</h2>
       <p class="note">從 Excel 複製「名字＋五個字塊」的欄位範圍後貼上（含表頭沒關係，會自動跳過）。
       以座位或名字比對既有玩家（重貼＝更新）；比對不到會新增玩家。
@@ -1207,7 +1303,7 @@ const UI = {
   let loaded=null;
   try{ // 取最新一份自動存檔（依 savedAt）
     for(const k of Object.keys(localStorage)){
-      if(!k.startsWith('zuicheng_')||k.startsWith('zuicheng_bak__')) continue;
+      if(!k.startsWith('zuicheng_')||k.startsWith('zuicheng_bak__')||k.startsWith('zuicheng_hist__')) continue;
       const s=JSON.parse(localStorage.getItem(k));
       if(!loaded||(s.savedAt||0)>(loaded.savedAt||0)) loaded=s;
     }
@@ -1219,7 +1315,7 @@ const UI = {
     for(const seat of 'ABCDEFGHIJKLMN'){ const p=newPlayer(seat); S.players.push(p); S.order.push(p.id); }
     log('新局建立：預設 14 位玩家（A–N），請登記個人規則後開始');
   }
-  render();
+  render(); timerDisp();
 })();
 </script>
 </body>
